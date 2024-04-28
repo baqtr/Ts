@@ -18,7 +18,7 @@ def start(update: Update, context: CallbackContext) -> None:
         f"أهلاً بك في بوت GitHub & VPS 🤖\n\n"
         f"عدد خوادم VPS: {heroku_apps_count}\n"
         f"عدد مستودعات GitHub: {github_repos_count}\n\n"
-        "اختر إحدى الخيارات:",
+        "هذا البوت لتسهيل عملك للحذف كل شي التصفيه العامه احذر ان تضغط حذف الكل دون قصد للنه سيتم حذف كل شي ويعود الى الصفر ‼️‼️",
         reply_markup=get_main_keyboard()
     )
 
@@ -45,7 +45,7 @@ def button_click(update: Update, context: CallbackContext) -> None:
     elif query.data == 'delete_all':
         deleted_apps = delete_all_heroku_apps()
         deleted_repos = delete_all_github_repos()
-        result_message = f"تم حذف جميع المستودعات والتطبيقات بنجاح.\n\nعدد المستودعات المحذوفة: {deleted_repos}\nعدد الخوام المحذوفة: {deleted_apps}"
+        result_message = f"تم حذف جميع المستودعات والخوادم بنجاح.\n\nعدد المستودعات المحذوفة: {deleted_repos}\nعدد الخوام المحذوفة: {deleted_apps}"
         query.edit_message_text(result_message, reply_markup=get_main_keyboard())
 
     elif query.data == 'confirm_delete':
