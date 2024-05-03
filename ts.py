@@ -144,7 +144,7 @@ def delete_all_github_repos() -> int:
         return 0
 
 def main() -> None:
-    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    updater = Updater(TELEGRAM_TOKEN,use_context=True)
     dp = updater.dispatcher
 
     conv_handler = ConversationHandler(
