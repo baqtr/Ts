@@ -10,7 +10,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 TELEGRAM_TOKEN = "6444148337:AAEcKzMdqFprlQmKhp_J598JonchHXvj-hk"
 HEROKU_API_KEY = "HRKU-354b0fc4-1af5-4c26-91a5-9c09166d5eee"
 GITHUB_ACCESS_TOKEN = "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"
-GITHUB_USERNAME = "Mohan1"
+GITHUB_USERNAME = "mwhan1"
 
 # Conversation states
 PASSWORD, MAIN_MENU = range(2)
