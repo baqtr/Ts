@@ -1,6 +1,4 @@
 import logging
-import random
-import string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler, MessageHandler, Filters
 import requests
@@ -13,6 +11,7 @@ GITHUB_ACCESS_TOKEN = "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"
 GITHUB_USERNAME = "mwhan1"
 
 # Conversation states
+PASSWORD, MAIN_MENU = range(2)
 
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text("الرجاء إدخال كلمة المرور للمتابعة.")
@@ -143,7 +142,7 @@ def delete_all_github_repos() -> int:
         return 0
 
 def main() -> None:
-    updater = Updater(TELEGRAM_TOKEN,use_context=True)
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
     conv_handler = ConversationHandler(
