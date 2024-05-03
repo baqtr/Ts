@@ -5,7 +5,7 @@ import requests
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-TELEGRAM_TOKEN = "7021020952:AAFoIRZ52WqViV7LrgtDvkLbWgCt-D8vwzk"
+TELEGRAM_TOKEN = "6997601099:AAGz7YgkkBhfGooebwoT7TniQcONjm38RsY"
 HEROKU_API_KEY = "HRKU-43525bf8-98dc-41db-be13-7ce5add1ee52"
 GITHUB_ACCESS_TOKEN = "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"
 GITHUB_USERNAME = "mwhan1"
