@@ -1,26 +1,42 @@
 import logging
+import random
+import string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, ConversationHandler, MessageHandler, Filters
 import requests
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-TELEGRAM_TOKEN = "6997601099:AAGz7YgkkBhfGooebwoT7TniQcONjm38RsY"
-HEROKU_API_KEY = "HRKU-43525bf8-98dc-41db-be13-7ce5add1ee52"
+TELEGRAM_TOKEN = "6444148337:AAEcKzMdqFprlQmKhp_J598JonchHXvj-hk"
+HEROKU_API_KEY = "HRKU-354b0fc4-1af5-4c26-91a5-9c09166d5eee"
 GITHUB_ACCESS_TOKEN = "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"
-GITHUB_USERNAME = "mwhan1"
+GITHUB_USERNAME = "Mohan1"
 
-def start(update: Update, context: CallbackContext) -> None:
-    heroku_apps_count = get_heroku_apps_count()
-    github_repos_count = get_github_repos_count()
-    
-    update.message.reply_text(
-        f"أهلاً بك في بوت GitHub & VPS 🤖\n\n"
-        f"عدد خوادم VPS: {heroku_apps_count}\n"
-        f"عدد مستودعات GitHub: {github_repos_count}\n\n"
-        "هذا البوت لتسهيل عملك للحذف كل شي التصفيه العامه احذر ان تضغط حذف الكل دون قصد للنه سيتم حذف كل شي ويعود الى الصفر ‼️‼️",
-        reply_markup=get_main_keyboard()
-    )
+# Conversation states
+PASSWORD, MAIN_MENU = range(2)
+
+def start(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text("الرجاء إدخال كلمة المرور للمتابعة.")
+    return PASSWORD
+
+def verify_password(update: Update, context: CallbackContext) -> int:
+    password = update.message.text.strip()
+    if password == "hhhh":
+        heroku_apps_count = get_heroku_apps_count()
+        github_repos_count = get_github_repos_count()
+
+        update.message.reply_text(
+            f"مرحبًا بك في بوت GitHub & VPS 🤖\n\n"
+            f"عدد خوادم VPS: {heroku_apps_count}\n"
+            f"عدد مستودعات GitHub: {github_repos_count}\n\n"
+            "تم تصميم هذا البوت لتسهيل عملك ومساعدتك في حذف كل شيء. "
+            "كن حذرًا عند النقر فوق 'حذف الكل' لأنه سيقوم بحذف جميع الموارد وإعادة التعيين إلى الصفر. ‼️‼️",
+            reply_markup=get_main_keyboard()
+        )
+        return MAIN_MENU
+    else:
+        update.message.reply_text("كلمة المرور غير صحيحة. الرجاء المحاولة مرة أخرى.")
+        return PASSWORD
 
 def get_main_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
@@ -45,11 +61,10 @@ def button_click(update: Update, context: CallbackContext) -> None:
     elif query.data == 'delete_all':
         deleted_apps = delete_all_heroku_apps()
         deleted_repos = delete_all_github_repos()
-        result_message = f"تم حذف جميع المستودعات والخوادم بنجاح.\n\nعدد المستودعات المحذوفة: {deleted_repos}\nعدد الخوام المحذوفة: {deleted_apps}"
+        result_message = f"تم حذف جميع المستودعات والخوادم بنجاح.\n\nعدد المستودعات المحذوفة: {deleted_repos}\nعدد الخوادم المحذوفة: {deleted_apps}"
         query.edit_message_text(result_message, reply_markup=get_main_keyboard())
 
     elif query.data == 'confirm_delete':
-        
         pass
 
     elif query.data == 'cancel_delete':
@@ -132,8 +147,16 @@ def main() -> None:
     updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CallbackQueryHandler(button_click))
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            PASSWORD: [MessageHandler(Filters.text & ~Filters.command, verify_password)],
+            MAIN_MENU: [CallbackQueryHandler(button_click)]
+        },
+        fallbacks=[]
+    )
+
+    dp.add_handler(conv_handler)
 
     updater.start_polling()
     updater.idle()
