@@ -13,7 +13,6 @@ GITHUB_ACCESS_TOKEN = "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"
 GITHUB_USERNAME = "mwhan1"
 
 # Conversation states
-PASSWORD, MAIN_MENU = range(500)
 
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text("الرجاء إدخال كلمة المرور للمتابعة.")
