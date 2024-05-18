@@ -1,176 +1,252 @@
-import logging
-import json
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
-import subprocess
 import os
-import threading
-import time
-import ast
-import sys
+import string
+import secrets
+import logging
+import zipfile
+import requests
+from github import Github
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
+from time import sleep
+from concurrent.futures import ThreadPoolExecutor
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-TOKEN = "7046309155:AAH0f4ObaNcExF23RDQmrJJcjvkijQ4tae0"
+TELEGRAM_TOKEN = "7046309155:AAH0f4ObaNcExF23RDQmrJJcjvkijQ4tae0"
+GITHUB_TOKEN = "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"
+HEROKU_API_KEY = "HRKU-47748b92-c786-45b0-8083-b7120cf1f6ba"
+ADMIN_ID = "7013440973"
 
-user_files = {}
-lock = threading.Lock()
-MAX_FILES_PER_USER = 5
-FILE_EXPIRY_TIME = 3600  # 1 hour
+user_count = 0
+executor = ThreadPoolExecutor(max_workers=10)
 
-def start(update: Update, context: CallbackContext) -> None:
-    user_id = update.message.from_user.id
+PASSWORD, MAIN_MENU = range(2)
 
-    if user_id in user_files:
-        for file_info in user_files[user_id]['files']:
-            file_path = file_info['path']
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        del user_files[user_id]
+def get_repository_count(github_token: str) -> int:
+    g = Github(github_token)
+    user = g.get_user()
+    repositories = user.get_repos()
+    return len(list(repositories))
 
-    user_files.setdefault(user_id, {'files': [], 'expiry_time': 0, 'last_result': ''})
-    
-    total_users = len(user_files)
+def get_heroku_apps_count() -> int:
+    headers = {
+        "Authorization": f"Bearer {HEROKU_API_KEY}",
+        "Accept": "application/vnd.heroku+json; version=3"
+    }
+    response = requests.get("https://api.heroku.com/apps", headers=headers)
+    if response.status_code == 200:
+        return len(response.json())
+    return 0
 
-    welcome_message = f"مرحباً بك في بوت استضافة البايثون. يمكنك إرسال ملف بايثون وسنقوم بتشغيله لك. إذا كان هناك أي أخطاء، سنعلمك بها. عدد المستخدمين الحالي: {total_users}.\n\nاستخدم الأزرار أدناه للتحكم:"
-    keyboard = [
-        [InlineKeyboardButton("عرض المعلومات", callback_data='info')],
-        [InlineKeyboardButton("حفظ النسخة الاحتياطية", callback_data='backup')],
-        [InlineKeyboardButton("استعادة النسخة الاحتياطية", callback_data='restore')],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(welcome_message, reply_markup=reply_markup)
+def get_github_repositories_count() -> int:
+    g = Github(GITHUB_TOKEN)
+    user = g.get_user()
+    repos = user.get_repos()
+    return repos.totalCount
 
-def handle_file(update: Update, context: CallbackContext) -> None:
-    user_id = update.message.from_user.id
-    user_files.setdefault(user_id, {'files': [], 'expiry_time': 0, 'last_result': ''})
+def get_heroku_apps() -> list:
+    headers = {
+        "Authorization": f"Bearer {HEROKU_API_KEY}",
+        "Accept": "application/vnd.heroku+json; version=3"
+    }
+    response = requests.get("https://api.heroku.com/apps", headers=headers)
+    if response.status_code == 200:
+        return [app['name'] for app in response.json()]
+    return []
 
-    if len(user_files[user_id]['files']) >= MAX_FILES_PER_USER:
-        update.message.reply_text("لقد تجاوزت الحد الأقصى لعدد الملفات المسموح بها. الرجاء المحاولة مرة أخرى لاحقًا.")
-        return
+def get_github_repos() -> list:
+    g = Github(GITHUB_TOKEN)
+    user = g.get_user()
+    repos = user.get_repos()
+    return [repo.name for repo in repos]
 
-    user_file = update.message.document
-    file_name = user_file.file_name
+def delete_heroku_app(name: str) -> bool:
+    headers = {
+        "Authorization": f"Bearer {HEROKU_API_KEY}",
+        "Accept": "application/vnd.heroku+json; version=3"
+    }
+    response = requests.delete(f"https://api.heroku.com/apps/{name}", headers=headers)
+    return response.status_code == 202
 
-    if not file_name.endswith('.py'):
-        update.message.reply_text("الرجاء إرسال ملف بايثون فقط.")
-        return
-
-    file_id = user_file.file_id
-    file_path = f"{user_id}_{file_name}"
-    user_file.get_file().download(file_path)
-
-    user_files[user_id]['files'].append({'path': file_path, 'start_time': 0, 'expiry_time': time.time() + FILE_EXPIRY_TIME, 'last_result': ''})
-
-    update.message.reply_text("تم استلام الملف، سيتم تشغيله قريباً ✅")
-
-    thread = threading.Thread(target=run_python_file, args=(update, user_id, len(user_files[user_id]['files']) - 1))
-    thread.start()
-
-def run_python_file(update: Update, user_id: int, file_index: int) -> None:
+def delete_github_repository(name: str) -> bool:
+    g = Github(GITHUB_TOKEN)
+    user = g.get_user()
     try:
-        with lock:
-            file_info = user_files[user_id]['files'][file_index]
-            file_path = file_info['path']
-            user_files[user_id]['files'][file_index]['start_time'] = time.time()
+        repo = user.get_repo(name)
+        repo.delete()
+        return True
+    except Exception:
+        return False
 
-        with open(file_path, 'r') as f:
-            code = f.read()
-
-        try:
-            # Check syntax errors
-            ast.parse(code)
-        except SyntaxError as e:
-            message = f"فشل تشغيل الملف بسبب خطأ نحوي ❌:\n\n{str(e)}"
-        else:
-            result = subprocess.run([sys.executable, file_path], capture_output=True, text=True)
-
-            if result.returncode == 0:
-                message = f"تم تشغيل الملف ({file_index + 1}) بنجاح ✅:\n\n{result.stdout}"
-            else:
-                message = f"فشل تشغيل الملف ({file_index + 1}) ❌:\n\n{result.stderr}"
-
-        with lock:
-            user_files[user_id]['files'][file_index]['last_result'] = message
-        update.message.reply_text(message)
-
-    except Exception as e:
-        with lock:
-            user_files[user_id]['files'][file_index]['last_result'] = f"حدث خطأ أثناء التشغيل:\n\n{str(e)}"
-        update.message.reply_text(f"حدث خطأ أثناء التشغيل:\n\n{str(e)}")
-
-    finally:
-        with lock:
-            os.remove(file_path)
-
-def cleanup_expired_files():
-    while True:
-        time.sleep(60)
-        with lock:
-            for user_id in list(user_files.keys()):
-                user_files[user_id]['files'] = [f for f in user_files[user_id]['files'] if time.time() < f['expiry_time']]
-                if not user_files[user_id]['files']:
-                    del user_files[user_id]
-
-def history(update: Update, context: CallbackContext) -> None:
+def start(update: Update, context: CallbackContext) -> int:
+    global user_count
     user_id = update.message.from_user.id
+    if user_id not in context.user_data:
+        update.message.reply_text("يرجاء ارسال كلمة المرور ‼️")
+        return PASSWORD
 
-    if user_id not in user_files or not user_files[user_id]['files']:
-        update.message.reply_text("لا يوجد سجل تشغيل للعرض.")
+    context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id)
+    welcome_message = f"اهلا نورت ارسل ملف مضغوط zip لرفعه على جيتهاب وتاكد من وضع متطلباته ويمكنك رفع ملف php ~ Python "
+    user_count_message = f"عدد المستخدمين: {user_count}"
+    repository_count_message = f"عدد المستودعات: {get_repository_count(GITHUB_TOKEN)}"
+    bot_link_button = InlineKeyboardButton(text='بوت حذف خادم ~ مستودع ♨️', url='https://t.me/kQNBot')
+    telegram_link_button = InlineKeyboardButton(text='المطور موهان ✅', url='https://t.me/XX44G')
+    keyboard = [[bot_link_button, telegram_link_button]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(f"{welcome_message}\n\n{user_count_message}\n{repository_count_message}", reply_markup=reply_markup)
+    return MAIN_MENU
+
+def authenticate(update: Update, context: CallbackContext) -> None:
+    global user_count
+    password = update.message.text
+    if password == "محمد تناحه":
+        user_id = update.message.from_user.id
+        context.user_data[user_id] = True
+        user_count += 1
+        reply_text = "تم قبول كلمة السر الصحيحة، ارسل /start لنبدأ"
+        context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id)
+        context.bot.send_message(chat_id=update.effective_chat.id, text=reply_text)
+        sleep(3)
+        start(update, context)
+    else:
+        update.message.reply_text("كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.")
+
+def create_github_repository(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    if user_id not in context.user_data:
+        update.message.reply_text("يرجى إدخال كلمة المرور أولاً.")
         return
 
-    history_message = "سجل التشغيل:\n\n"
-    for i, file_info in enumerate(user_files[user_id]['files'], 1):
-        history_message += f"ملف {i}:\n{file_info['last_result']}\n\n"
-    
-    update.message.reply_text(history_message)
+    if not update.message.document or not update.message.document.file_name.endswith('.zip'):
+        update.message.reply_text("يرجى إرسال ملف مضغوط (ZIP).")
+        return
 
-def button(update: Update, context: CallbackContext) -> None:
+    file = update.message.document
+    file_name = file.file_name
+    file_path = f"./{file_name}"
+    file.get_file().download(file_path)
+
+    try:
+        with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            zip_ref.extractall(f"./{file_name[:-4]}")
+    except Exception as e:
+        update.message.reply_text("حدث خطأ أثناء فك الضغط على الملف.")
+        logging.error(f"Error extracting ZIP file: {e}")
+        return
+
+    random_string = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(2))
+    
+    repository_name = f"{update.effective_user.username}-{random_string}-github-repo"
+    g = Github(GITHUB_TOKEN)
+    user = g.get_user()
+
+    try:
+        repo = user.create_repo(repository_name, private=True)
+    except Exception as e:
+        update.message.reply_text("حدث خطأ أثناء إنشاء مستودع GitHub.")
+        logging.error(f"Error creating GitHub repository: {e}")
+        return
+
+    try:
+        for root, dirs, files in os.walk(f"./{file_name[:-4]}"):
+            for file in files:
+                with open(os.path.join(root, file), 'rb') as f:
+                    content = f.read()
+                    repo.create_file(os.path.join(root, file), f"Add {file}", content)
+    except Exception as e:
+        update.message.reply_text("حدث خطأ أثناء إضافة الملفات إلى المستودع.")
+        logging.error(f"Error adding files to GitHub repository: {e}")
+        return
+
+    files_count = sum(len(files) for _, _, files in os.walk(f"./{file_name[:-4]}"))
+
+    success_emoji = "\U0001F389"
+    copy_emoji = "\U0001F4CC"
+    repository_link = f"`{repository_name}`"
+    success_message = (f"الى موهان لكي يقوم بتشغيله لك : @XX44G {success_emoji}\n\n"
+                       f"اسم المستودع: {repository_link} - {copy_emoji} انقر لنسخ الاسم\n"
+                       f"عدد الملفات التي تم وضوعها في المستودع: {files_count}\n")
+    update.message.reply_text(success_message, reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown')
+
+    os.remove(file_path)
+    os.system(f"rm -rf ./{file_name[:-4]}")
+
+def verify_password(update: Update, context: CallbackContext) -> int:
+    password = update.message.text.strip()
+    if password == "محمد تناحه":
+        heroku_apps_count = get_heroku_apps_count()
+        github_repos_count = get_github_repositories_count()
+
+        update.message.reply_text(
+            f"مرحبًا {update.message.from_user.first_name}!\n\n"
+            f"الخوادم التي يتم تشغيلها ✅ حاليًا على VPS: {heroku_apps_count}\n"
+            f"المستودعات ✅ حاليًا على GitHub: {github_repos_count}\n\n"
+            "يمكنك حذف مستودع أو خادم عن طريق النقر على الزر المناسب.",
+            reply_markup=get_main_keyboard()
+        )
+        return MAIN_MENU
+    else:
+        update.message.reply_text("كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.")
+        return PASSWORD
+
+def get_main_keyboard() -> InlineKeyboardMarkup:
+    keyboard = [
+        [InlineKeyboardButton("عرض الخوادم VPS", callback_data='heroku_apps')],
+        [InlineKeyboardButton("عرض مستودعات GitHub", callback_data='github_repos')],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def button_click(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
-    user_id = query.from_user.id
     query.answer()
 
-    if query.data == 'info':
-        if user_id not in user_files or not user_files[user_id]['files']:
-            query.edit_message_text("لا توجد ملفات قيد التشغيل.")
-            return
+    if query.data == 'heroku_apps':
+        apps_list = get_heroku_apps()
+        if apps_list:
+            buttons = [[InlineKeyboardButton(app, callback_data=f'heroku_app_{app}')] for app in apps_list]
+            buttons.append([InlineKeyboardButton("رجوع", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            query.edit_message_text("الرجاء اختيار الخادم الذي تريد حذفه:", reply_markup=reply_markup)
+        else:
+            query.edit_message_text("لا توجد خوادم متاحة حاليًا على VPS.")
 
-        info_message = "معلومات التشغيل:\n\n"
-        for i, file_info in enumerate(user_files[user_id]['files'], 1):
-            elapsed_time = time.time() - file_info['start_time']
-            info_message += f"ملف {i}:\nالوقت المستغرق: {elapsed_time:.2f} ثانية\n\n"
-        
-        query.edit_message_text(info_message)
+    elif query.data == 'github_repos':
+        repos_list = get_github_repos()
+        if repos_list:
+            buttons = [[InlineKeyboardButton(repo, callback_data=f'github_repo_{repo}')] for repo in repos_list]
+            buttons.append([InlineKeyboardButton("رجوع", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            query.edit_message_text("الرجاء اختيار المستودع الذي تريد حذفه:", reply_markup=reply_markup)
+        else:
+            query.edit_message_text("لا توجد مستودعات متاحة حاليًا على GitHub.")
 
-    elif query.data == 'backup':
-        backup_data = {'user_files': user_files}
-        with open('backup.json', 'w') as backup_file:
-            json.dump(backup_data, backup_file)
-        query.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح ✅")
+    elif query.data.startswith('heroku_app_'):
+        app_name = query.data[len('heroku_app_'):]
+        result = delete_heroku_app(app_name)
+        if result:
+            query.edit_message_text(f"تم حذف الخادم {app_name} بنجاح ✅")
+        else:
+            query.edit_message_text(f"فشل في حذف الخادم {app_name} ⚠️")
 
-    elif query.data == 'restore':
-        try:
-            with open('backup.json', 'r') as backup_file:
-                backup_data = json.load(backup_file)
-            global user_files
-            user_files = backup_data['user_files']
-            query.edit_message_text("تم استعادة النسخة الاحتياطية بنجاح ✅")
-        except FileNotFoundError:
-            query.edit_message_text("لم يتم العثور على ملف النسخة الاحتياطية ❌")
-        except Exception as e:
-            query.edit_message_text(f"حدث خطأ أثناء استعادة النسخة الاحتياطية ❌:\n\n{str(e)}")
+    elif query.data.startswith('github_repo_'):
+        repo_name = query.data[len('github_repo_'):]
+        result = delete_github_repository(repo_name)
+        if result:
+            query.edit_message_text(f"تم حذف المستودع '{repo_name}' بنجاح ✅")
+        else:
+            query.edit_message_text(f"فشل في حذف المستودع '{repo_name}' ⚠️")
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
+    elif query.data == 'back':
+        start(update.callback_query.message, context)
+
+def main() -> None:
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
     dp = updater.dispatcher
 
     dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("history", history))
-    dp.add_handler(MessageHandler(Filters.document & Filters.private, handle_file))
-    dp.add_handler(CallbackQueryHandler(button))
-
-    cleanup_thread = threading.Thread(target=cleanup_expired_files, daemon=True)
-    cleanup_thread.start()
+    dp.add_handler(CallbackQueryHandler(button_click))
+    dp.add_handler(MessageHandler(Filters.text & Filters.private & ~Filters.command, authenticate))
+    dp.add_handler(MessageHandler(Filters.document & Filters.private, create_github_repository))
 
     updater.start_polling()
     updater.idle()
