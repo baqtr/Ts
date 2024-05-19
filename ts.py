@@ -6,43 +6,23 @@ import zipfile
 import requests
 from github import Github
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler, ConversationHandler
-from time import sleep
-from concurrent.futures import ThreadPoolExecutor
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 
+# إعدادات السجلات
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+# المتغيرات الأساسية
 TELEGRAM_TOKEN = "7046309155:AAH0f4ObaNcExF23RDQmrJJcjvkijQ4tae0"
-GITHUB_TOKEN = "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"
-HEROKU_API_KEY = "HRKU-47748b92-c786-45b0-8083-b7120cf1f6ba"
-ADMIN_ID = "7013440973"
+GITHUB_TOKEN = "YOUR_GITHUB_TOKEN"
+HEROKU_API_KEY = "YOUR_HEROKU_API_KEY"
+ADMIN_ID = "YOUR_ADMIN_ID"
+PASSWORD = "محمد تناحه"
 
-user_count = 0
-executor = ThreadPoolExecutor(max_workers=10)
-
-PASSWORD, MAIN_MENU = range(2)
-
-def get_repository_count(github_token: str) -> int:
-    g = Github(github_token)
-    user = g.get_user()
-    repositories = user.get_repos()
-    return len(list(repositories))
-
-def get_heroku_apps_count() -> int:
-    headers = {
-        "Authorization": f"Bearer {HEROKU_API_KEY}",
-        "Accept": "application/vnd.heroku+json; version=3"
-    }
-    response = requests.get("https://api.heroku.com/apps", headers=headers)
-    if response.status_code == 200:
-        return len(response.json())
-    return 0
-
-def get_github_repositories_count() -> int:
+# الدوال المساعدة
+def get_github_repos() -> list:
     g = Github(GITHUB_TOKEN)
     user = g.get_user()
-    repos = user.get_repos()
-    return repos.totalCount
+    return [repo.name for repo in user.get_repos()]
 
 def get_heroku_apps() -> list:
     headers = {
@@ -50,25 +30,9 @@ def get_heroku_apps() -> list:
         "Accept": "application/vnd.heroku+json; version=3"
     }
     response = requests.get("https://api.heroku.com/apps", headers=headers)
-    if response.status_code == 200:
-        return [app['name'] for app in response.json()]
-    return []
+    return [app['name'] for app in response.json()] if response.status_code == 200 else []
 
-def get_github_repos() -> list:
-    g = Github(GITHUB_TOKEN)
-    user = g.get_user()
-    repos = user.get_repos()
-    return [repo.name for repo in repos]
-
-def delete_heroku_app(name: str) -> bool:
-    headers = {
-        "Authorization": f"Bearer {HEROKU_API_KEY}",
-        "Accept": "application/vnd.heroku+json; version=3"
-    }
-    response = requests.delete(f"https://api.heroku.com/apps/{name}", headers=headers)
-    return response.status_code == 202
-
-def delete_github_repository(name: str) -> bool:
+def delete_github_repo(name: str) -> bool:
     g = Github(GITHUB_TOKEN)
     user = g.get_user()
     try:
@@ -78,50 +42,47 @@ def delete_github_repository(name: str) -> bool:
     except Exception:
         return False
 
-def start(update: Update, context: CallbackContext) -> int:
-    global user_count
-    user_id = update.message.from_user.id
-    if user_id not in context.user_data:
-        update.message.reply_text("يرجاء ارسال كلمة المرور ‼️")
-        return PASSWORD
+def delete_heroku_app(name: str) -> bool:
+    headers = {
+        "Authorization": f"Bearer {HEROKU_API_KEY}",
+        "Accept": "application/vnd.heroku+json; version=3"
+    }
+    response = requests.delete(f"https://api.heroku.com/apps/{name}", headers=headers)
+    return response.status_code == 202
 
-    context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id)
-    welcome_message = f"اهلا نورت ارسل ملف مضغوط zip لرفعه على جيتهاب وتاكد من وضع متطلباته ويمكنك رفع ملف php ~ Python "
-    user_count_message = f"عدد المستخدمين: {user_count}"
-    repository_count_message = f"عدد المستودعات: {get_repository_count(GITHUB_TOKEN)}"
-    bot_link_button = InlineKeyboardButton(text='بوت حذف خادم ~ مستودع ♨️', url='https://t.me/kQNBot')
-    telegram_link_button = InlineKeyboardButton(text='المطور موهان ✅', url='https://t.me/XX44G')
-    keyboard = [[bot_link_button, telegram_link_button]]
+def start(update: Update, context: CallbackContext) -> None:
+    user_id = update.message.from_user.id
+    if user_id != int(ADMIN_ID):
+        update.message.reply_text("يرجى إدخال كلمة المرور.")
+        return
+
+    welcome_message = "أهلاً بك! يمكنك إدارة المستودعات والخوادم باستخدام الأزرار أدناه."
+    keyboard = [
+        [InlineKeyboardButton("عرض مستودعات GitHub", callback_data='show_github_repos')],
+        [InlineKeyboardButton("عرض خوادم Heroku", callback_data='show_heroku_apps')],
+        [InlineKeyboardButton("إنشاء مستودع جديد", callback_data='create_github_repo')]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(f"{welcome_message}\n\n{user_count_message}\n{repository_count_message}", reply_markup=reply_markup)
-    return MAIN_MENU
+    update.message.reply_text(welcome_message, reply_markup=reply_markup)
 
 def authenticate(update: Update, context: CallbackContext) -> None:
-    global user_count
     password = update.message.text
-    if password == "محمد تناحه":
-        user_id = update.message.from_user.id
-        context.user_data[user_id] = True
-        user_count += 1
-        reply_text = "تم قبول كلمة السر الصحيحة، ارسل /start لنبدأ"
-        context.bot.delete_message(chat_id=update.effective_chat.id, message_id=update.message.message_id)
-        context.bot.send_message(chat_id=update.effective_chat.id, text=reply_text)
-        sleep(3)
-        start(update, context)
+    if password == PASSWORD:
+        context.user_data['authenticated'] = True
+        update.message.reply_text("تم التحقق من كلمة المرور بنجاح، ارسل /start للبدء.")
     else:
         update.message.reply_text("كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.")
 
-def create_github_repository(update: Update, context: CallbackContext) -> None:
-    user_id = update.message.from_user.id
-    if user_id not in context.user_data:
+def create_github_repo(update: Update, context: CallbackContext) -> None:
+    if 'authenticated' not in context.user_data:
         update.message.reply_text("يرجى إدخال كلمة المرور أولاً.")
         return
 
-    if not update.message.document or not update.message.document.file_name.endswith('.zip'):
+    file = update.message.document
+    if not file or not file.file_name.endswith('.zip'):
         update.message.reply_text("يرجى إرسال ملف مضغوط (ZIP).")
         return
 
-    file = update.message.document
     file_name = file.file_name
     file_path = f"./{file_name}"
     file.get_file().download(file_path)
@@ -135,107 +96,63 @@ def create_github_repository(update: Update, context: CallbackContext) -> None:
         return
 
     random_string = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(2))
-    
-    repository_name = f"{update.effective_user.username}-{random_string}-github-repo"
+    repo_name = f"{update.effective_user.username}-{random_string}-repo"
     g = Github(GITHUB_TOKEN)
     user = g.get_user()
 
     try:
-        repo = user.create_repo(repository_name, private=True)
-    except Exception as e:
-        update.message.reply_text("حدث خطأ أثناء إنشاء مستودع GitHub.")
-        logging.error(f"Error creating GitHub repository: {e}")
-        return
-
-    try:
+        repo = user.create_repo(repo_name, private=True)
         for root, dirs, files in os.walk(f"./{file_name[:-4]}"):
             for file in files:
                 with open(os.path.join(root, file), 'rb') as f:
                     content = f.read()
-                    repo.create_file(os.path.join(root, file), f"Add {file}", content)
+                    repo.create_file(os.path.relpath(os.path.join(root, file), f"./{file_name[:-4]}"), f"Add {file}", content)
+        files_count = sum(len(files) for _, _, files in os.walk(f"./{file_name[:-4]}"))
+        success_message = (f"تم إنشاء المستودع بنجاح.\n"
+                           f"اسم المستودع: `{repo_name}`\n"
+                           f"عدد الملفات: {files_count}")
+        update.message.reply_text(success_message, reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown')
     except Exception as e:
-        update.message.reply_text("حدث خطأ أثناء إضافة الملفات إلى المستودع.")
-        logging.error(f"Error adding files to GitHub repository: {e}")
-        return
-
-    files_count = sum(len(files) for _, _, files in os.walk(f"./{file_name[:-4]}"))
-
-    success_emoji = "\U0001F389"
-    copy_emoji = "\U0001F4CC"
-    repository_link = f"`{repository_name}`"
-    success_message = (f"الى موهان لكي يقوم بتشغيله لك : @XX44G {success_emoji}\n\n"
-                       f"اسم المستودع: {repository_link} - {copy_emoji} انقر لنسخ الاسم\n"
-                       f"عدد الملفات التي تم وضوعها في المستودع: {files_count}\n")
-    update.message.reply_text(success_message, reply_markup=ReplyKeyboardRemove(), parse_mode='Markdown')
+        update.message.reply_text("حدث خطأ أثناء إنشاء المستودع.")
+        logging.error(f"Error creating GitHub repository: {e}")
 
     os.remove(file_path)
     os.system(f"rm -rf ./{file_name[:-4]}")
-
-def verify_password(update: Update, context: CallbackContext) -> int:
-    password = update.message.text.strip()
-    if password == "محمد تناحه":
-        heroku_apps_count = get_heroku_apps_count()
-        github_repos_count = get_github_repositories_count()
-
-        update.message.reply_text(
-            f"مرحبًا {update.message.from_user.first_name}!\n\n"
-            f"الخوادم التي يتم تشغيلها ✅ حاليًا على VPS: {heroku_apps_count}\n"
-            f"المستودعات ✅ حاليًا على GitHub: {github_repos_count}\n\n"
-            "يمكنك حذف مستودع أو خادم عن طريق النقر على الزر المناسب.",
-            reply_markup=get_main_keyboard()
-        )
-        return MAIN_MENU
-    else:
-        update.message.reply_text("كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى.")
-        return PASSWORD
-
-def get_main_keyboard() -> InlineKeyboardMarkup:
-    keyboard = [
-        [InlineKeyboardButton("عرض الخوادم VPS", callback_data='heroku_apps')],
-        [InlineKeyboardButton("عرض مستودعات GitHub", callback_data='github_repos')],
-    ]
-    return InlineKeyboardMarkup(keyboard)
 
 def button_click(update: Update, context: CallbackContext) -> None:
     query = update.callback_query
     query.answer()
 
-    if query.data == 'heroku_apps':
-        apps_list = get_heroku_apps()
-        if apps_list:
-            buttons = [[InlineKeyboardButton(app, callback_data=f'heroku_app_{app}')] for app in apps_list]
+    if query.data == 'show_github_repos':
+        repos = get_github_repos()
+        if repos:
+            buttons = [[InlineKeyboardButton(repo, callback_data=f'delete_github_repo_{repo}')] for repo in repos]
             buttons.append([InlineKeyboardButton("رجوع", callback_data='back')])
-            reply_markup = InlineKeyboardMarkup(buttons)
-            query.edit_message_text("الرجاء اختيار الخادم الذي تريد حذفه:", reply_markup=reply_markup)
+            query.edit_message_text("الرجاء اختيار المستودع الذي تريد حذفه:", reply_markup=InlineKeyboardMarkup(buttons))
         else:
-            query.edit_message_text("لا توجد خوادم متاحة حاليًا على VPS.")
-
-    elif query.data == 'github_repos':
-        repos_list = get_github_repos()
-        if repos_list:
-            buttons = [[InlineKeyboardButton(repo, callback_data=f'github_repo_{repo}')] for repo in repos_list]
+            query.edit_message_text("لا توجد مستودعات متاحة حالياً على GitHub.")
+    elif query.data == 'show_heroku_apps':
+        apps = get_heroku_apps()
+        if apps:
+            buttons = [[InlineKeyboardButton(app, callback_data=f'delete_heroku_app_{app}')] for app in apps]
             buttons.append([InlineKeyboardButton("رجوع", callback_data='back')])
-            reply_markup = InlineKeyboardMarkup(buttons)
-            query.edit_message_text("الرجاء اختيار المستودع الذي تريد حذفه:", reply_markup=reply_markup)
+            query.edit_message_text("الرجاء اختيار الخادم الذي تريد حذفه:", reply_markup=InlineKeyboardMarkup(buttons))
         else:
-            query.edit_message_text("لا توجد مستودعات متاحة حاليًا على GitHub.")
-
-    elif query.data.startswith('heroku_app_'):
-        app_name = query.data[len('heroku_app_'):]
-        result = delete_heroku_app(app_name)
-        if result:
-            query.edit_message_text(f"تم حذف الخادم {app_name} بنجاح ✅")
+            query.edit_message_text("لا توجد خوادم متاحة حالياً على Heroku.")
+    elif query.data == 'create_github_repo':
+        query.edit_message_text("يرجى إرسال ملف مضغوط (ZIP) لإنشاء مستودع جديد.")
+    elif query.data.startswith('delete_github_repo_'):
+        repo_name = query.data[len('delete_github_repo_'):]
+        if delete_github_repo(repo_name):
+            query.edit_message_text(f"تم حذف المستودع {repo_name} بنجاح.")
         else:
-            query.edit_message_text(f"فشل في حذف الخادم {app_name} ⚠️")
-
-    elif query.data.startswith('github_repo_'):
-        repo_name = query.data[len('github_repo_'):]
-        result = delete_github_repository(repo_name)
-        if result:
-            query.edit_message_text(f"تم حذف المستودع '{repo_name}' بنجاح ✅")
+            query.edit_message_text(f"فشل في حذف المستودع {repo_name}.")
+    elif query.data.startswith('delete_heroku_app_'):
+        app_name = query.data[len('delete_heroku_app_'):]
+        if delete_heroku_app(app_name):
+            query.edit_message_text(f"تم حذف الخادم {app_name} بنجاح.")
         else:
-            query.edit_message_text(f"فشل في حذف المستودع '{repo_name}' ⚠️")
-
+            query.edit_message_text(f"فشل في حذف الخادم {app_name}.")
     elif query.data == 'back':
         start(update.callback_query.message, context)
 
@@ -246,7 +163,7 @@ def main() -> None:
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CallbackQueryHandler(button_click))
     dp.add_handler(MessageHandler(Filters.text & Filters.private & ~Filters.command, authenticate))
-    dp.add_handler(MessageHandler(Filters.document & Filters.private, create_github_repository))
+    dp.add_handler(MessageHandler(Filters.document & Filters.private, create_github_repo))
 
     updater.start_polling()
     updater.idle()
