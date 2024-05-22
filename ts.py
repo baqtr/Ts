@@ -3,17 +3,14 @@ import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, Filters, CallbackContext
 
-# مراحل الحوار
 ASKING_API, MANAGING_APPS = range(2)
 
-# ابدأ وظيفة البوت
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        "👋 مرحبًا! من فضلك أرسل لي Heroku API Token الخاص بك للبدء."
+        "مرحبًا! من فضلك أرسل لي Heroku API Token الخاص بك للبدء."
     )
     return ASKING_API
 
-# استقبال API والتحقق منه
 def ask_api(update: Update, context: CallbackContext) -> int:
     api_token = update.message.text
     headers = {
@@ -30,7 +27,6 @@ def ask_api(update: Update, context: CallbackContext) -> int:
         update.message.reply_text("API Token غير صالح. حاول مرة أخرى.")
         return ASKING_API
 
-# جلب التطبيقات وعرضها كأزرار
 def manage_apps(update: Update, context: CallbackContext) -> int:
     api_token = context.user_data.get('api_token')
     headers = {
@@ -41,6 +37,8 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
     
     if response.status_code == 200:
         apps = response.json()
+        num_apps = len(apps)
+        
         layout = context.user_data.get('layout', 'vertical')
         
         if layout == 'vertical':
@@ -55,8 +53,10 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
                     row.append(InlineKeyboardButton(apps[i + 1]['name'], callback_data=apps[i + 1]['id']))
                 keyboard.append(row)
         
+        keyboard.append([InlineKeyboardButton(f"عدد التطبيقات: {num_apps}", callback_data='num_apps')])
         keyboard.append([InlineKeyboardButton("تبديل API", callback_data='switch_api')])
         keyboard.append([InlineKeyboardButton("تبديل ترتيب الأزرار", callback_data='switch_layout')])
+        keyboard.append([InlineKeyboardButton("👨‍💻 مطور البوت", url='https://t.me/xx44g')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         if isinstance(update, Update):
             update.message.reply_text("اختر التطبيق لحذفه:", reply_markup=reply_markup)
@@ -67,7 +67,6 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
         update.message.reply_text("حدث خطأ في جلب التطبيقات.")
         return ASKING_API
 
-# معالجة الضغط على الأزرار
 def button(update: Update, context: CallbackContext) -> int:
     query = update.callback_query
     query.answer()
@@ -80,6 +79,8 @@ def button(update: Update, context: CallbackContext) -> int:
         new_layout = 'horizontal' if current_layout == 'vertical' else 'mixed' if current_layout == 'horizontal' else 'vertical'
         context.user_data['layout'] = new_layout
         return manage_apps(query, context)
+    elif query.data == 'num_apps':
+        return MANAGING_APPS
     elif query.data == 'back':
         return manage_apps(query, context)
     else:
@@ -99,7 +100,6 @@ def button(update: Update, context: CallbackContext) -> int:
         else:
             query.edit_message_text(text="فشل في حذف التطبيق. حاول مرة أخرى.", reply_markup=reply_markup)
 
-# إنهاء الحوار
 def cancel(update: Update, context: CallbackContext) -> int:
     update.message.reply_text('تم إنهاء الجلسة.')
     return ConversationHandler.END
