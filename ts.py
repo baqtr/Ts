@@ -45,8 +45,15 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
         
         if layout == 'vertical':
             keyboard = [[InlineKeyboardButton(app['name'], callback_data=app['id'])] for app in apps]
-        else:
+        elif layout == 'horizontal':
             keyboard = [[InlineKeyboardButton(app['name'], callback_data=app['id']) for app in apps]]
+        else:  # mixed layout
+            keyboard = []
+            for i in range(0, len(apps), 2):
+                row = [InlineKeyboardButton(apps[i]['name'], callback_data=apps[i]['id'])]
+                if i + 1 < len(apps):
+                    row.append(InlineKeyboardButton(apps[i + 1]['name'], callback_data=apps[i + 1]['id']))
+                keyboard.append(row)
         
         keyboard.append([InlineKeyboardButton("تبديل API", callback_data='switch_api')])
         keyboard.append([InlineKeyboardButton("تبديل ترتيب الأزرار", callback_data='switch_layout')])
@@ -70,8 +77,10 @@ def button(update: Update, context: CallbackContext) -> int:
         return ASKING_API
     elif query.data == 'switch_layout':
         current_layout = context.user_data.get('layout', 'vertical')
-        new_layout = 'horizontal' if current_layout == 'vertical' else 'vertical'
+        new_layout = 'horizontal' if current_layout == 'vertical' else 'mixed' if current_layout == 'horizontal' else 'vertical'
         context.user_data['layout'] = new_layout
+        return manage_apps(query, context)
+    elif query.data == 'back':
         return manage_apps(query, context)
     else:
         api_token = context.user_data.get('api_token')
@@ -82,13 +91,13 @@ def button(update: Update, context: CallbackContext) -> int:
         }
         response = requests.delete(f'https://api.heroku.com/apps/{app_id}', headers=headers)
         
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data='back')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         if response.status_code == 202:
-            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data='back')]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
             query.edit_message_text(text=f"تم حذف التطبيق بنجاح! (ID: {app_id})", reply_markup=reply_markup)
         else:
-            query.edit_message_text(text="فشل في حذف التطبيق. حاول مرة أخرى.")
-            return MANAGING_APPS
+            query.edit_message_text(text="فشل في حذف التطبيق. حاول مرة أخرى.", reply_markup=reply_markup)
 
 # إنهاء الحوار
 def cancel(update: Update, context: CallbackContext) -> int:
