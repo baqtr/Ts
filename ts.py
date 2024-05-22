@@ -10,7 +10,7 @@ ASKING_API, MANAGING_APPS = range(2)
 # ابدأ وظيفة البوت
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        "👋 مرحبًا! من فضلك أرسل لي Heroku API Token الخاص بك للبدء."
+        "👋 مرحبًا! من فضلك أرسلAPI"
     )
     return ASKING_API
 
