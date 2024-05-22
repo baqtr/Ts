@@ -2,6 +2,7 @@ import os
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, Filters, CallbackContext
+import time
 
 # مراحل الحوار
 ASKING_API, MANAGING_APPS = range(2)
@@ -69,7 +70,8 @@ def button(update: Update, context: CallbackContext) -> int:
         
         if response.status_code == 202:
             query.edit_message_text(text=f"تم حذف التطبيق بنجاح! (ID: {app_id})")
-            return manage_apps(update, context)
+            time.sleep(3)
+            return manage_apps(query, context)
         else:
             query.edit_message_text(text="فشل في حذف التطبيق. حاول مرة أخرى.")
             return MANAGING_APPS
