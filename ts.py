@@ -10,7 +10,7 @@ ASKING_API, MANAGING_APPS = range(2)
 # ابدأ وظيفة البوت
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        "👋 مرحبًا! من فضلك أرسلAPI"
+        "👋 مرحبًا! من فضلك أرسل لي Heroku API Token الخاص بك للبدء."
     )
     return ASKING_API
 
@@ -44,6 +44,7 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
         apps = response.json()
         keyboard = [[InlineKeyboardButton(app['name'], callback_data=app['id'])] for app in apps]
         keyboard.append([InlineKeyboardButton("تبديل API", callback_data='switch_api')])
+        keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data='back')])
         reply_markup = InlineKeyboardMarkup(keyboard)
         update.message.reply_text("اختر التطبيق لحذفه:", reply_markup=reply_markup)
         return MANAGING_APPS
@@ -59,6 +60,9 @@ def button(update: Update, context: CallbackContext) -> int:
     if query.data == 'switch_api':
         query.edit_message_text(text="من فضلك أرسل لي Heroku API Token الجديد.")
         return ASKING_API
+    elif query.data == 'back':
+        query.edit_message_text(text="اختر التطبيق لحذفه أو قم بتبديل API:", reply_markup=query.message.reply_markup)
+        return MANAGING_APPS
     else:
         api_token = context.user_data.get('api_token')
         app_id = query.data
