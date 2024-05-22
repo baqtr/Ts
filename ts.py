@@ -8,7 +8,7 @@ from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageH
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# تعريف التوكن الخاص بالبوت
+# جلب التوكن الخاص بالبوت من متغيرات البيئة
 TOKEN = os.getenv("7046309155:AAH0f4ObaNcExF23RDQmrJJcjvkijQ4tae0")
 HEROKU_API_KEY = None
 
@@ -66,6 +66,11 @@ def switch_api(update: Update, context: CallbackContext) -> None:
     update.message.reply_text("تم حذف مفتاح API الحالي. الرجاء إرسال مفتاح جديد.")
 
 def main() -> None:
+    # تأكد من أن التوكن تم جلبه بنجاح
+    if not TOKEN:
+        logger.error("لم يتم العثور على التوكن. تأكد من تعيين متغير البيئة TELEGRAM_BOT_TOKEN")
+        return
+
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
