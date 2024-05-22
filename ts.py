@@ -7,7 +7,7 @@ ASKING_API, MANAGING_APPS = range(2)
 
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        "مرحبًا! من فضلك أرسل لي Heroku API Token الخاص بك للبدء."
+        "مرحبا بك في بوت المساعد للمساعدتك على حذف تطبيقات معينه من هيروكو للبدا ارسل API 🌚🎊"
     )
     return ASKING_API
 
@@ -72,7 +72,7 @@ def button(update: Update, context: CallbackContext) -> int:
     query.answer()
     
     if query.data == 'switch_api':
-        query.edit_message_text(text="من فضلك أرسل لي Heroku API Token الجديد.")
+        query.edit_message_text(text="تم تسجيل خروج ارسل API للتسجيل مره اخرا ✅")
         return ASKING_API
     elif query.data == 'switch_layout':
         current_layout = context.user_data.get('layout', 'vertical')
@@ -98,7 +98,7 @@ def button(update: Update, context: CallbackContext) -> int:
         if response.status_code == 202:
             query.edit_message_text(text=f"تم حذف التطبيق بنجاح! (ID: {app_id})", reply_markup=reply_markup)
         else:
-            query.edit_message_text(text="فشل في حذف التطبيق. حاول مرة أخرى.", reply_markup=reply_markup)
+            query.edit_message_text(text="تم حذف التطبيق بنجاح  اضغط رجوع للعوده ✅", reply_markup=reply_markup)
 
 def cancel(update: Update, context: CallbackContext) -> int:
     update.message.reply_text('تم إنهاء الجلسة.')
