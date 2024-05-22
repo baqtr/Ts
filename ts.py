@@ -2,7 +2,6 @@ import os
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, ConversationHandler, MessageHandler, Filters, CallbackContext
-import time
 
 # مراحل الحوار
 ASKING_API, MANAGING_APPS = range(2)
@@ -42,11 +41,20 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
     
     if response.status_code == 200:
         apps = response.json()
-        keyboard = [[InlineKeyboardButton(app['name'], callback_data=app['id'])] for app in apps]
+        layout = context.user_data.get('layout', 'vertical')
+        
+        if layout == 'vertical':
+            keyboard = [[InlineKeyboardButton(app['name'], callback_data=app['id'])] for app in apps]
+        else:
+            keyboard = [[InlineKeyboardButton(app['name'], callback_data=app['id']) for app in apps]]
+        
         keyboard.append([InlineKeyboardButton("تبديل API", callback_data='switch_api')])
-        keyboard.append([InlineKeyboardButton("🔙 رجوع", callback_data='back')])
+        keyboard.append([InlineKeyboardButton("تبديل ترتيب الأزرار", callback_data='switch_layout')])
         reply_markup = InlineKeyboardMarkup(keyboard)
-        update.message.reply_text("اختر التطبيق لحذفه:", reply_markup=reply_markup)
+        if isinstance(update, Update):
+            update.message.reply_text("اختر التطبيق لحذفه:", reply_markup=reply_markup)
+        else:
+            update.edit_message_text("اختر التطبيق لحذفه:", reply_markup=reply_markup)
         return MANAGING_APPS
     else:
         update.message.reply_text("حدث خطأ في جلب التطبيقات.")
@@ -60,9 +68,11 @@ def button(update: Update, context: CallbackContext) -> int:
     if query.data == 'switch_api':
         query.edit_message_text(text="من فضلك أرسل لي Heroku API Token الجديد.")
         return ASKING_API
-    elif query.data == 'back':
-        query.edit_message_text(text="اختر التطبيق لحذفه أو قم بتبديل API:", reply_markup=query.message.reply_markup)
-        return MANAGING_APPS
+    elif query.data == 'switch_layout':
+        current_layout = context.user_data.get('layout', 'vertical')
+        new_layout = 'horizontal' if current_layout == 'vertical' else 'vertical'
+        context.user_data['layout'] = new_layout
+        return manage_apps(query, context)
     else:
         api_token = context.user_data.get('api_token')
         app_id = query.data
@@ -73,9 +83,9 @@ def button(update: Update, context: CallbackContext) -> int:
         response = requests.delete(f'https://api.heroku.com/apps/{app_id}', headers=headers)
         
         if response.status_code == 202:
-            query.edit_message_text(text=f"تم حذف التطبيق بنجاح! (ID: {app_id})")
-            time.sleep(3)
-            return manage_apps(query, context)
+            keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data='back')]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            query.edit_message_text(text=f"تم حذف التطبيق بنجاح! (ID: {app_id})", reply_markup=reply_markup)
         else:
             query.edit_message_text(text="فشل في حذف التطبيق. حاول مرة أخرى.")
             return MANAGING_APPS
