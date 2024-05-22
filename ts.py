@@ -24,7 +24,7 @@ def ask_api(update: Update, context: CallbackContext) -> int:
         update.message.reply_text("تم استقبال API بنجاح! جاري جلب التطبيقات...")
         return manage_apps(update, context)
     else:
-        update.message.reply_text("API Token غير صالح. حاول مرة أخرى.")
+        update.message.reply_text("API غير صالح تاكد من صحتهه واعد ارساله ❌")
         return ASKING_API
 
 def manage_apps(update: Update, context: CallbackContext) -> int:
