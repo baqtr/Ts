@@ -7,7 +7,7 @@ ASKING_API, MANAGING_APPS = range(2)
 
 def start(update: Update, context: CallbackContext) -> int:
     update.message.reply_text(
-        "مرحبا بك في بوت المساعد للمساعدتك على حذف تطبيقات معينه من هيروكو للبدا ارسل API 🌚🎊"
+        "مرحبًا بك في بوت المساعد لحذف التطبيقات من  للبدء، أرسل لي API  الخاص بك."
     )
     return ASKING_API
 
@@ -24,7 +24,7 @@ def ask_api(update: Update, context: CallbackContext) -> int:
         update.message.reply_text("تم استقبال API بنجاح! جاري جلب التطبيقات...")
         return manage_apps(update, context)
     else:
-        update.message.reply_text("API غير صالح تاكد من صحتهه واعد ارساله ❌")
+        update.message.reply_text("API غير صالح. تأكد من صحته وأعد إرساله.")
         return ASKING_API
 
 def manage_apps(update: Update, context: CallbackContext) -> int:
@@ -54,6 +54,7 @@ def manage_apps(update: Update, context: CallbackContext) -> int:
                 keyboard.append(row)
         
         keyboard.append([InlineKeyboardButton(f"عدد التطبيقات: {num_apps}", callback_data='num_apps')])
+        keyboard.append([InlineKeyboardButton("حذف الكل", callback_data='delete_all')])
         keyboard.append([InlineKeyboardButton("تبديل API", callback_data='switch_api')])
         keyboard.append([InlineKeyboardButton("تبديل ترتيب الأزرار", callback_data='switch_layout')])
         keyboard.append([InlineKeyboardButton("👨‍💻 مطور البوت", url='https://t.me/xx44g')])
@@ -72,7 +73,7 @@ def button(update: Update, context: CallbackContext) -> int:
     query.answer()
     
     if query.data == 'switch_api':
-        query.edit_message_text(text="تم تسجيل خروج ارسل API للتسجيل مره اخرا ✅")
+        query.edit_message_text(text="تم تسجيل الخروج. أرسل API للتسجيل مرة أخرى.")
         return ASKING_API
     elif query.data == 'switch_layout':
         current_layout = context.user_data.get('layout', 'vertical')
@@ -81,6 +82,8 @@ def button(update: Update, context: CallbackContext) -> int:
         return manage_apps(query, context)
     elif query.data == 'num_apps':
         return MANAGING_APPS
+    elif query.data == 'delete_all':
+        return delete_all_apps(query, context)
     elif query.data == 'back':
         return manage_apps(query, context)
     else:
@@ -98,14 +101,37 @@ def button(update: Update, context: CallbackContext) -> int:
         if response.status_code == 202:
             query.edit_message_text(text=f"تم حذف التطبيق بنجاح! (ID: {app_id})", reply_markup=reply_markup)
         else:
-            query.edit_message_text(text="تم حذف التطبيق بنجاح  اضغط رجوع للعوده ✅", reply_markup=reply_markup)
+            query.edit_message_text(text="تم حذف التطبيق بنجاح اضغط رجوع للعوده ✅", reply_markup=reply_markup)
+
+def delete_all_apps(query: Update, context: CallbackContext) -> int:
+    api_token = context.user_data.get('api_token')
+    headers = {
+        'Authorization': f'Bearer {api_token}',
+        'Accept': 'application/vnd.heroku+json; version=3'
+    }
+    response = requests.get('https://api.heroku.com/apps', headers=headers)
+    
+    if response.status_code == 200:
+        apps = response.json()
+        deleted_count = 0
+        
+        for app in apps:
+            app_id = app['id']
+            del_response = requests.delete(f'https://api.heroku.com/apps/{app_id}', headers=headers)
+            if del_response.status_code == 202:
+                deleted_count += 1
+        
+        keyboard = [[InlineKeyboardButton("🔙 رجوع", callback_data='back')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        query.edit_message_text(text=f"تم حذف جميع التطبيقات بنجاح! (عدد التطبيقات المحذوفة: {deleted_count})", reply_markup=reply_markup)
+    else:
+        query.edit_message_text("حدث خطأ أثناء جلب التطبيقات.")
 
 def cancel(update: Update, context: CallbackContext) -> int:
     update.message.reply_text('تم إنهاء الجلسة.')
     return ConversationHandler.END
 
 def main():
-    # توكن البوت الخاص بك
     TOKEN = '7046309155:AAH0f4ObaNcExF23RDQmrJJcjvkijQ4tae0'
     
     updater = Updater(TOKEN, use_context=True)
