@@ -33,24 +33,16 @@ user_accounts = {}
 # قائمة لتخزين الأحداث
 events = []
 
-# دالة لإنشاء أزرار القائمة الرئيسية
-def create_main_buttons(user_id):
+# دالة لإنشاء الأزرار وتخصيصها
+def create_main_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
-    
     button1 = telebot.types.InlineKeyboardButton("إضافة حساب ➕", callback_data="add_account")
     button2 = telebot.types.InlineKeyboardButton("حساباتك 🗂️", callback_data="list_accounts")
     button3 = telebot.types.InlineKeyboardButton("قسم جيتهاب 🛠️", callback_data="github_section")
     button4 = telebot.types.InlineKeyboardButton("الأحداث 🔄", callback_data="show_events")
-    
-    # الحالة الحالية للوضع الآمن
-    safe_mode_status = "مفعل ✅" if user_settings[user_id]['safe_mode'] else "معطل ❌"
-    button5 = telebot.types.InlineKeyboardButton(f"الوضع الآمن: {safe_mode_status}", callback_data="toggle_safe_mode")
-    
     markup.add(button1, button2)
     markup.add(button3)
     markup.add(button4)
-    markup.add(button5)
-    
     return markup
 
 def create_github_control_buttons():
