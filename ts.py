@@ -202,7 +202,7 @@ def callback_query(call):
         bot.register_next_step_handler(msg, handle_repo_deletion)
     elif call.data == "delete_all_repos":
         delete_all_repos(call)
-        elif call.data == "backup_data":
+    elif call.data == "backup_data":
         backup_data(call)
     elif call.data == "restore_data":
         restore_data(call)
