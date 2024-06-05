@@ -31,6 +31,7 @@ self_deleting_apps = {}
 # تخزين حسابات المستخدم
 user_accounts = {}
 
+
 # قائمة لتخزين الأحداث
 events = []
 # دالة لإنشاء الأزرار وتخصيصها
@@ -377,8 +378,6 @@ def delete_all_repos(call):
     bot.edit_message_text(f"تم حذف جميع المستودعات بنجاح.\nعدد المستودعات المحذوفة: {repo_count}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
 
 # دالة لحفظ النسخة الاحتياطية للبيانات
-
-
 
 def backup_data(call):
     user_id = call.from_user.id
