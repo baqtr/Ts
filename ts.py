@@ -8,6 +8,7 @@ import tempfile
 import random
 import string
 import shutil
+import json
 from datetime import datetime, timedelta
 import pytz
 from github import Github
@@ -32,7 +33,6 @@ user_accounts = {}
 
 # قائمة لتخزين الأحداث
 events = []
-
 # دالة لإنشاء الأزرار وتخصيصها
 def create_main_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
@@ -371,6 +371,51 @@ def delete_all_repos(call):
     for repo in repos:
         repo.delete()
     bot.edit_message_text(f"تم حذف جميع المستودعات بنجاح.\nعدد المستودعات المحذوفة: {repo_count}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
+
+# دالة لحفظ النسخة الاحتياطية للبيانات
+def backup_data(call):
+    user_id = call.from_user.id
+    backup_content = {
+        'user_accounts': user_accounts,
+        'self_deleting_apps': self_deleting_apps,
+        'events': events
+    }
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+        json.dump(backup_content, temp_file)
+        temp_file_path = temp_file.name
+
+    with open(temp_file_path, 'rb') as backup_file:
+        bot.send_document(user_id, backup_file)
+
+    os.remove(temp_file_path)
+    bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons())
+
+# دالة لاسترجاع البيانات من النسخة الاحتياطية
+def restore_data(call):
+    user_id = call.from_user.id
+    msg = bot.edit_message_text("يرجى إرسال ملف النسخة الاحتياطية (بصيغة .json):", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
+    bot.register_next_step_handler(msg, handle_restore_data)
+
+def handle_restore_data(message):
+    if message.document and message.document.mime_type == 'application/json':
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+            temp_file.write(downloaded_file)
+            temp_file_path = temp_file.name
+
+        with open(temp_file_path, 'r') as backup_file:
+            backup_content = json.load(backup_file)
+            global user_accounts, self_deleting_apps, events
+            user_accounts = backup_content.get('user_accounts', {})
+            self_deleting_apps = backup_content.get('self_deleting_apps', {})
+            events = backup_content.get('events', [])
+
+        os.remove(temp_file_path)
+        bot.send_message(message.chat.id, "تم استرجاع النسخة الاحتياطية بنجاح.", reply_markup=create_main_buttons())
+    else:
+        bot.send_message(message.chat.id, "الملف المرسل ليس بملف JSON صالح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
 
 
 
