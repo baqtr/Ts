@@ -33,9 +33,6 @@ user_accounts = {}
 
 # قائمة لتخزين الأحداث
 events = []
-
-
-)
 #bot = app
 #app = bot
 
