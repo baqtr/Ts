@@ -31,6 +31,8 @@ self_deleting_apps = {}
 # تخزين حسابات المستخدم
 user_accounts = {}
 
+heroku_api_keys = {}
+
 # قائمة لتخزين الأحداث
 events = []
 # دالة لإنشاء الأزرار وتخصيصها
