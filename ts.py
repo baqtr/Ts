@@ -40,11 +40,14 @@ def create_main_buttons():
     button2 = telebot.types.InlineKeyboardButton("حساباتك 🗂️", callback_data="list_accounts")
     button3 = telebot.types.InlineKeyboardButton("قسم جيتهاب 🛠️", callback_data="github_section")
     button4 = telebot.types.InlineKeyboardButton("الأحداث 🔄", callback_data="show_events")
+    button5 = telebot.types.InlineKeyboardButton("حفظ نسخة احتياطية 💾", callback_data="backup_data")
+    button6 = telebot.types.InlineKeyboardButton("استرجاع نسخة احتياطية 🔄", callback_data="restore_data")
     markup.add(button1, button2)
     markup.add(button3)
     markup.add(button4)
+    markup.add(button5, button6)
     return markup
-
+    
 def create_github_control_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
     delete_all_button = telebot.types.InlineKeyboardButton("حذف الكل 🗑️", callback_data="delete_all_repos")
