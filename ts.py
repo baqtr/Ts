@@ -8,7 +8,6 @@ import tempfile
 import random
 import string
 import shutil
-import json
 from datetime import datetime, timedelta
 import pytz
 from github import Github
@@ -31,10 +30,9 @@ self_deleting_apps = {}
 # تخزين حسابات المستخدم
 user_accounts = {}
 
-heroku_api_keys = {}
-
 # قائمة لتخزين الأحداث
 events = []
+
 # دالة لإنشاء الأزرار وتخصيصها
 def create_main_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
@@ -42,14 +40,13 @@ def create_main_buttons():
     button2 = telebot.types.InlineKeyboardButton("حساباتك 🗂️", callback_data="list_accounts")
     button3 = telebot.types.InlineKeyboardButton("قسم جيتهاب 🛠️", callback_data="github_section")
     button4 = telebot.types.InlineKeyboardButton("الأحداث 🔄", callback_data="show_events")
-    button5 = telebot.types.InlineKeyboardButton("حفظ نسخة احتياطية 💾", callback_data="backup_data")
-    button6 = telebot.types.InlineKeyboardButton("استرجاع نسخة احتياطية 🔄", callback_data="restore_data")
+    button5 = telebot.types.InlineKeyboardButton("إيقاف تشغيل تطبيق Heroku ⏹️", callback_data="stop_heroku_app") 
     markup.add(button1, button2)
     markup.add(button3)
     markup.add(button4)
-    markup.add(button5, button6)
+    markup.add(button5)  # إضافة الزر الجديد
     return markup
-    
+
 def create_github_control_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
     delete_all_button = telebot.types.InlineKeyboardButton("حذف الكل 🗑️", callback_data="delete_all_repos")
@@ -204,10 +201,9 @@ def callback_query(call):
         bot.register_next_step_handler(msg, handle_repo_deletion)
     elif call.data == "delete_all_repos":
         delete_all_repos(call)
-    elif call.data == "backup_data":
-        backup_data(call)
-    elif call.data == "restore_data":
-        restore_data(call)
+    elif call.data == "stop_heroku_app":
+        msg = bot.send_message(call.message.chat.id, "يرجى إدخال اسم التطبيق لإيقاف تشغيله.")
+        bot.register_next_step_handler(msg, handle_stop_heroku_app)
         #دالة الحذف
 def handle_app_name_for_deletion(message, account_index):
     app_name = message.text.strip()
@@ -378,83 +374,8 @@ def delete_all_repos(call):
         repo.delete()
     bot.edit_message_text(f"تم حذف جميع المستودعات بنجاح.\nعدد المستودعات المحذوفة: {repo_count}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
 
-# دالة لحفظ النسخة الاحتياطية للبيانات
 
-def backup_data(call):
-    user_id = call.from_user.id
-    backup_content = {
-        'user_accounts': user_accounts,
-        'self_deleting_apps': self_deleting_apps,
-        'events': events
-        # يمكنك تضمين أي بيانات إضافية تريد حفظها هنا
-    }
-    # استخدام os.path للحصول على مسار الملف المؤقت بدلاً من متغير البيئة temp_file
-    temp_file_path = os.path.join(tempfile.gettempdir(), "backup_data.json")
-    with open(temp_file_path, 'w') as temp_file:
-        json.dump(backup_content, temp_file)
 
-    # إرسال الملف مباشرة بدون فتحه مرة أخرى كملف ثنائي
-    with open(temp_file_path, 'rb') as backup_file:
-        bot.send_document(user_id, backup_file)
-
-    # حذف الملف المؤقت
-    os.remove(temp_file_path)
-
-    # تحسين رسالة التأكيد لتحتوي على رابط للعودة إلى القائمة الرئيسية
-    bot.send_message(user_id, "تم حفظ النسخة الاحتياطية بنجاح.")
-    bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح. [العودة إلى القائمة الرئيسية](https://link.to.main.menu)", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons(), parse_mode='Markdown')
-
-# دالة لحفظ البيانات كملف نسخ احتياطي
-def backup_data(call):
-    user_id = call.from_user.id
-    backup_content = {
-        'user_accounts': user_accounts,
-        'self_deleting_apps': self_deleting_apps,
-        'events': events,
-        'heroku_api_keys': heroku_api_keys  # تخزين مفاتيح API Heroku
-        # يمكنك تضمين أي بيانات إضافية تريد حفظها هنا
-    }
-    temp_file_path = os.path.join(tempfile.gettempdir(), "backup_data.json")
-    with open(temp_file_path, 'w') as temp_file:
-        json.dump(backup_content, temp_file)
-
-    with open(temp_file_path, 'rb') as backup_file:
-        bot.send_document(user_id, backup_file)
-
-    os.remove(temp_file_path)
-
-    bot.send_message(user_id, "تم حفظ النسخة الاحتياطية بنجاح.")
-    bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح. [العودة إلى القائمة الرئيسية](https://link.to.main.menu)", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons(), parse_mode='Markdown')
-
-# دالة لاسترجاع البيانات من النسخة الاحتياطية
-def restore_data(call):
-    user_id = call.from_user.id
-    msg = bot.send_message(user_id, "يرجى إرسال ملف النسخة الاحتياطية (بصيغة .json):", reply_markup=create_back_button())
-    bot.register_next_step_handler(msg, handle_restore_data)
-
-def handle_restore_data(message):
-    user_id = message.from_user.id
-    if message.document and message.document.mime_type == 'application/json':
-        file_info = bot.get_file(message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-
-        temp_file_path = "backup_data.json"
-        with open(temp_file_path, 'wb') as temp_file:
-            temp_file.write(downloaded_file)
-
-        with open(temp_file_path, 'r') as backup_file:
-            backup_content = json.load(backup_file)
-            global user_accounts, self_deleting_apps, events, heroku_api_keys
-            user_accounts = backup_content.get('user_accounts', {})
-            self_deleting_apps = backup_content.get('self_deleting_apps', {})
-            events = backup_content.get('events', [])
-            heroku_api_keys = backup_content.get('heroku_api_keys', {})  # استعادة مفاتيح API Heroku
-            # يمكنك استعادة أي بيانات إضافية هنا
-
-        bot.send_message(user_id, "تم استرجاع النسخة الاحتياطية بنجاح.", reply_markup=create_main_buttons())
-    else:
-        bot.send_message(user_id, "الملف المرسل ليس بملف JSON صالح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
-        
 # التشغيل
 if __name__ == "__main__":
     bot.polling()
