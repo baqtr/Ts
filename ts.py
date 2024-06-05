@@ -379,12 +379,14 @@ def delete_all_repos(call):
 # دالة لحفظ النسخة الاحتياطية للبيانات
 
 
+
 def backup_data(call):
     user_id = call.from_user.id
     backup_content = {
         'user_accounts': user_accounts,
         'self_deleting_apps': self_deleting_apps,
         'events': events
+        # يمكنك تضمين أي بيانات إضافية تريد حفظها هنا
     }
     # استخدام os.path للحصول على مسار الملف المؤقت بدلاً من متغير البيئة temp_file
     temp_file_path = os.path.join(tempfile.gettempdir(), "backup_data.json")
@@ -401,6 +403,7 @@ def backup_data(call):
     # تحسين رسالة التأكيد لتحتوي على رابط للعودة إلى القائمة الرئيسية
     bot.send_message(user_id, "تم حفظ النسخة الاحتياطية بنجاح.")
     bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح. [العودة إلى القائمة الرئيسية](https://link.to.main.menu)", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons(), parse_mode='Markdown')
+
 # دالة لاسترجاع البيانات من النسخة الاحتياطية
 def restore_data(call):
     user_id = call.from_user.id
@@ -424,12 +427,12 @@ def handle_restore_data(message):
             user_accounts = backup_content.get('user_accounts', {})
             self_deleting_apps = backup_content.get('self_deleting_apps', {})
             events = backup_content.get('events', [])
+            # يمكنك استعادة أي بيانات إضافية هنا
 
         # لا حاجة لحذف الملف المؤقت، حيث أنه بإمكاننا استخدام نفس الملف مرة أخرى للاستعادة
         bot.send_message(user_id, "تم استرجاع النسخة الاحتياطية بنجاح.", reply_markup=create_main_buttons())
     else:
         bot.send_message(user_id, "الملف المرسل ليس بملف JSON صالح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
-
 
 # التشغيل
 if __name__ == "__main__":
