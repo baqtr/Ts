@@ -47,13 +47,6 @@ def create_main_buttons():
     markup.add(button5)
     return markup
 
-# دالة لتغيير وضع الأمان
-def toggle_safe_mode(call):
-    global safe_mode_enabled
-    safe_mode_enabled = not safe_mode_enabled
-    mode_status = "مفعل ✅" if safe_mode_enabled else "معطل ❌"
-    bot.send_message(call.message.chat.id, f"تم تحديث وضع الأمان إلى: {mode_status}")
-
 def create_github_control_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
     delete_all_button = telebot.types.InlineKeyboardButton("حذف الكل 🗑️", callback_data="delete_all_repos")
@@ -216,6 +209,14 @@ def callback_query(call):
         if prevent_deletion(call):
             return
         delete_all_repos(call)
+    elif call.data == "toggle_safe_mode":
+        toggle_safe_mode(call)
+
+def toggle_safe_mode(call):
+    global safe_mode_enabled
+    safe_mode_enabled = not safe_mode_enabled
+    mode_status = "مفعل ✅" if safe_mode_enabled else "معطل ❌"
+    bot.send_message(call.message.chat.id, f"تم تحديث وضع الأمان إلى: {mode_status}")
         #دالة الحذف
 def handle_app_name_for_deletion(message, account_index):
     app_name = message.text.strip()
