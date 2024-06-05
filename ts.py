@@ -377,6 +377,8 @@ def delete_all_repos(call):
     bot.edit_message_text(f"تم حذف جميع المستودعات بنجاح.\nعدد المستودعات المحذوفة: {repo_count}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
 
 # دالة لحفظ النسخة الاحتياطية للبيانات
+
+
 def backup_data(call):
     user_id = call.from_user.id
     backup_content = {
@@ -384,16 +386,21 @@ def backup_data(call):
         'self_deleting_apps': self_deleting_apps,
         'events': events
     }
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+    # استخدام os.path للحصول على مسار الملف المؤقت بدلاً من متغير البيئة temp_file
+    temp_file_path = os.path.join(tempfile.gettempdir(), "backup_data.json")
+    with open(temp_file_path, 'w') as temp_file:
         json.dump(backup_content, temp_file)
-        temp_file_path = temp_file.name
 
+    # إرسال الملف مباشرة بدون فتحه مرة أخرى كملف ثنائي
     with open(temp_file_path, 'rb') as backup_file:
         bot.send_document(user_id, backup_file)
 
+    # حذف الملف المؤقت
     os.remove(temp_file_path)
-    bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons())
 
+    # تحسين رسالة التأكيد لتحتوي على رابط للعودة إلى القائمة الرئيسية
+    bot.send_message(user_id, "تم حفظ النسخة الاحتياطية بنجاح.")
+    bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح. [العودة إلى القائمة الرئيسية](https://link.to.main.menu)", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons(), parse_mode='Markdown')
 # دالة لاسترجاع البيانات من النسخة الاحتياطية
 def restore_data(call):
     user_id = call.from_user.id
