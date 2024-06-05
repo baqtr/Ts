@@ -13,7 +13,7 @@ import pytz
 from github import Github
 
 # استيراد توكن البوت من المتغيرات البيئية
-bot_token = "7031770762:AAEKh2HzaEn-mUm6YkqGm6qZA2JRJGOUQ20"
+bot_token = "6444148337:AAFANHnwUPQXnq_SLHnqhsuH9WnSxALtUvo"
 github_token = "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"
 # إنشاء كائن البوت
 bot = telebot.TeleBot(bot_token)
@@ -40,12 +40,19 @@ def create_main_buttons():
     button2 = telebot.types.InlineKeyboardButton("حساباتك 🗂️", callback_data="list_accounts")
     button3 = telebot.types.InlineKeyboardButton("قسم جيتهاب 🛠️", callback_data="github_section")
     button4 = telebot.types.InlineKeyboardButton("الأحداث 🔄", callback_data="show_events")
-    button5 = telebot.types.InlineKeyboardButton("إيقاف تشغيل تطبيق Heroku ⏹️", callback_data="stop_heroku_app") 
+    button5 = telebot.types.InlineKeyboardButton("الوضع الآمن: مفعل ✅", callback_data="toggle_safe_mode")
     markup.add(button1, button2)
     markup.add(button3)
     markup.add(button4)
-    markup.add(button5)  # إضافة الزر الجديد
+    markup.add(button5)
     return markup
+
+# دالة لتغيير وضع الأمان
+def toggle_safe_mode(call):
+    global safe_mode_enabled
+    safe_mode_enabled = not safe_mode_enabled
+    mode_status = "مفعل ✅" if safe_mode_enabled else "معطل ❌"
+    bot.send_message(call.message.chat.id, f"تم تحديث وضع الأمان إلى: {mode_status}")
 
 def create_github_control_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
@@ -178,10 +185,14 @@ def callback_query(call):
     elif call.data.startswith("list_heroku_apps_"):
         list_heroku_apps(call)
     elif call.data.startswith("delete_app_"):
+        if prevent_deletion(call):
+            return
         account_index = int(call.data.split("_")[-1])
         msg = bot.edit_message_text("يرجى إرسال اسم التطبيق لحذفه:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
         bot.register_next_step_handler(msg, lambda m: handle_app_name_for_deletion(m, account_index))
     elif call.data.startswith("self_delete_app_"):
+        if prevent_deletion(call):
+            return
         account_index = int(call.data.split("_")[-1])
         msg = bot.edit_message_text("يرجى إرسال اسم التطبيق للحذف الذاتي:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
         bot.register_next_step_handler(msg, lambda m: handle_app_name_for_self_deletion(m, account_index))
@@ -197,13 +208,14 @@ def callback_query(call):
     elif call.data == "list_github_repos":
         list_github_repos(call)
     elif call.data == "delete_repo":
+        if prevent_deletion(call):
+            return
         msg = bot.send_message(call.message.chat.id, "يرجى إرسال اسم المستودع لحذفه.")
         bot.register_next_step_handler(msg, handle_repo_deletion)
     elif call.data == "delete_all_repos":
+        if prevent_deletion(call):
+            return
         delete_all_repos(call)
-    elif call.data == "stop_heroku_app":
-        msg = bot.send_message(call.message.chat.id, "يرجى إدخال اسم التطبيق لإيقاف تشغيله.")
-        bot.register_next_step_handler(msg, handle_stop_heroku_app)
         #دالة الحذف
 def handle_app_name_for_deletion(message, account_index):
     app_name = message.text.strip()
