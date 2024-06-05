@@ -31,6 +31,8 @@ self_deleting_apps = {}
 # تخزين حسابات المستخدم
 user_accounts = {}
 
+heroku_api_keys = {}
+
 # قائمة لتخزين الأحداث
 events = []
 # دالة لإنشاء الأزرار وتخصيصها
@@ -404,6 +406,28 @@ def backup_data(call):
     bot.send_message(user_id, "تم حفظ النسخة الاحتياطية بنجاح.")
     bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح. [العودة إلى القائمة الرئيسية](https://link.to.main.menu)", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons(), parse_mode='Markdown')
 
+# دالة لحفظ البيانات كملف نسخ احتياطي
+def backup_data(call):
+    user_id = call.from_user.id
+    backup_content = {
+        'user_accounts': user_accounts,
+        'self_deleting_apps': self_deleting_apps,
+        'events': events,
+        'heroku_api_keys': heroku_api_keys  # تخزين مفاتيح API Heroku
+        # يمكنك تضمين أي بيانات إضافية تريد حفظها هنا
+    }
+    temp_file_path = os.path.join(tempfile.gettempdir(), "backup_data.json")
+    with open(temp_file_path, 'w') as temp_file:
+        json.dump(backup_content, temp_file)
+
+    with open(temp_file_path, 'rb') as backup_file:
+        bot.send_document(user_id, backup_file)
+
+    os.remove(temp_file_path)
+
+    bot.send_message(user_id, "تم حفظ النسخة الاحتياطية بنجاح.")
+    bot.edit_message_text("تم حفظ النسخة الاحتياطية بنجاح. [العودة إلى القائمة الرئيسية](https://link.to.main.menu)", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons(), parse_mode='Markdown')
+
 # دالة لاسترجاع البيانات من النسخة الاحتياطية
 def restore_data(call):
     user_id = call.from_user.id
@@ -416,24 +440,22 @@ def handle_restore_data(message):
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
 
-        # استخدام مسار ملف مؤقت باسم ملف ثابت بدلاً من السماح لـ tempfile بتوليد اسم ملف عشوائي
         temp_file_path = "backup_data.json"
         with open(temp_file_path, 'wb') as temp_file:
             temp_file.write(downloaded_file)
 
         with open(temp_file_path, 'r') as backup_file:
             backup_content = json.load(backup_file)
-            global user_accounts, self_deleting_apps, events
+            global user_accounts, self_deleting_apps, events, heroku_api_keys
             user_accounts = backup_content.get('user_accounts', {})
             self_deleting_apps = backup_content.get('self_deleting_apps', {})
             events = backup_content.get('events', [])
+            heroku_api_keys = backup_content.get('heroku_api_keys', {})  # استعادة مفاتيح API Heroku
             # يمكنك استعادة أي بيانات إضافية هنا
 
-        # لا حاجة لحذف الملف المؤقت، حيث أنه بإمكاننا استخدام نفس الملف مرة أخرى للاستعادة
         bot.send_message(user_id, "تم استرجاع النسخة الاحتياطية بنجاح.", reply_markup=create_main_buttons())
     else:
         bot.send_message(user_id, "الملف المرسل ليس بملف JSON صالح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
-
 # التشغيل
 if __name__ == "__main__":
     bot.polling()
