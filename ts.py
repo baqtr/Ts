@@ -404,17 +404,19 @@ def backup_data(call):
 # دالة لاسترجاع البيانات من النسخة الاحتياطية
 def restore_data(call):
     user_id = call.from_user.id
-    msg = bot.edit_message_text("يرجى إرسال ملف النسخة الاحتياطية (بصيغة .json):", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
+    msg = bot.send_message(user_id, "يرجى إرسال ملف النسخة الاحتياطية (بصيغة .json):", reply_markup=create_back_button())
     bot.register_next_step_handler(msg, handle_restore_data)
 
 def handle_restore_data(message):
+    user_id = message.from_user.id
     if message.document and message.document.mime_type == 'application/json':
         file_info = bot.get_file(message.document.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as temp_file:
+        # استخدام مسار ملف مؤقت باسم ملف ثابت بدلاً من السماح لـ tempfile بتوليد اسم ملف عشوائي
+        temp_file_path = "backup_data.json"
+        with open(temp_file_path, 'wb') as temp_file:
             temp_file.write(downloaded_file)
-            temp_file_path = temp_file.name
 
         with open(temp_file_path, 'r') as backup_file:
             backup_content = json.load(backup_file)
@@ -423,11 +425,10 @@ def handle_restore_data(message):
             self_deleting_apps = backup_content.get('self_deleting_apps', {})
             events = backup_content.get('events', [])
 
-        os.remove(temp_file_path)
-        bot.send_message(message.chat.id, "تم استرجاع النسخة الاحتياطية بنجاح.", reply_markup=create_main_buttons())
+        # لا حاجة لحذف الملف المؤقت، حيث أنه بإمكاننا استخدام نفس الملف مرة أخرى للاستعادة
+        bot.send_message(user_id, "تم استرجاع النسخة الاحتياطية بنجاح.", reply_markup=create_main_buttons())
     else:
-        bot.send_message(message.chat.id, "الملف المرسل ليس بملف JSON صالح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
-
+        bot.send_message(user_id, "الملف المرسل ليس بملف JSON صالح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
 
 
 # التشغيل
