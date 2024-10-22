@@ -1,4 +1,5 @@
 APScheduler==3.6.3
+telethon==1.29.0
 cachetools==4.2.2
 certifi==2022.6.15
 charset-normalizer==2.1.0
@@ -35,3 +36,7 @@ kvsqlite==0.2.1
 schedule==1.1.0
 psutil==5.8.0
 PyGithub
+psycopg2-binary
+PyMuPDF
+pdf2image
+pikepdf
