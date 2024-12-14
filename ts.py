@@ -75,7 +75,7 @@ def send_welcome(message):
 
     markup = types.InlineKeyboardMarkup()
     upload_button = types.InlineKeyboardButton('رفع ملف بوت', callback_data='upload')
-    dev_channel_button = types.InlineKeyboardButton('قناة المطور', url='https://t.me/M1telegramM1')
+    dev_channel_button = types.InlineKeyboardButton('قناة المطور', url='https://t.me/mt_3z')
     speed_button = types.InlineKeyboardButton('سرعة البوت', callback_data='speed')
     markup.add(upload_button)
     markup.add(speed_button, dev_channel_button)
