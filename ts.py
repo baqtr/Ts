@@ -13,7 +13,7 @@ import psycopg2
 
 TOKEN = '7535951291:AAH4i-VEPdflsJiR_r73JnZRFFao6u9Bgfk'
 ADMIN_ID = 7072622935
-channel = '@Mt_3z'
+channel = '@Viptofey'
 
 bot = telebot.TeleBot(TOKEN)
 uploaded_files_dir = 'uploaded_bots'
