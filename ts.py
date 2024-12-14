@@ -11,9 +11,9 @@ from telebot import types
 import time
 import psycopg2
 
-TOKEN = '7535951291:AAH4i-VEPdflsJiR_r73JnZRFFao6u9Bgfk'
-ADMIN_ID = 7072622935
-channel = '@Viptofey'
+TOKEN = '7535951291:AAH4i-VEPdflsJiR_r73JnZRFFao6u9Bgfk'  # ضع هنا توكن البوت الخاص بك
+ADMIN_ID = 7072622935  # ضع هنا معرف الأدمن الخاص بك
+CHANNEL = '@Viptofey'  # ضع هنا معرف القناة الخاصة بك
 
 bot = telebot.TeleBot(TOKEN)
 uploaded_files_dir = 'uploaded_bots'
@@ -22,7 +22,7 @@ bot_scripts = {}
 if not os.path.exists(uploaded_files_dir):
     os.makedirs(uploaded_files_dir)
 
-DATABASE_URL = "postgres://u1hduks33islti:p8c8224c38062f0c82c4128d4a04532ddb7a61e9efb9dd246313941e762be76ee@ec2-3-208-156-53.compute-1.amazonaws.com:5432/d2i9fcsgc6m328"
+DATABASE_URL = "postgres://user:password@host:port/dbname"  # ضع هنا رابط قاعدة البيانات الخاص بك
 connection = psycopg2.connect(DATABASE_URL, sslmode='require')
 cursor = connection.cursor()
 
@@ -48,7 +48,7 @@ def initialize_database():
 
 def check_subscription(user_id):
     try:
-        member_status = bot.get_chat_member(channel, user_id).status
+        member_status = bot.get_chat_member(CHANNEL, user_id).status
         is_subscribed = member_status in ['member', 'administrator', 'creator']
         cursor.execute("INSERT INTO users (user_id, username, is_subscribed) VALUES (%s, %s, %s) ON CONFLICT (user_id) DO UPDATE SET is_subscribed = EXCLUDED.is_subscribed", (user_id, bot.get_chat(user_id).username, is_subscribed))
         connection.commit()
@@ -61,9 +61,9 @@ def check_subscription(user_id):
 
 def ask_for_subscription(chat_id):
     markup = types.InlineKeyboardMarkup()
-    join_button = types.InlineKeyboardButton('اشترك في القناة', url=f'https://t.me/{channel}')
+    join_button = types.InlineKeyboardButton('اشترك في القناة', url=f'https://t.me/{CHANNEL}')
     markup.add(join_button)
-    bot.send_message(chat_id, f"عزيزي المستخدم، عليك الاشتراك في القناة {channel} لتتمكن من استخدام البوت.", reply_markup=markup)
+    bot.send_message(chat_id, f"عزيزي المستخدم، عليك الاشتراك في القناة {CHANNEL} لتتمكن من استخدام البوت.", reply_markup=markup)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
