@@ -11,7 +11,7 @@ from telebot import types
 import time
 import psycopg2
 
-TOKEN = '7535951291:AAH4i-VEPdflsJiR_r73JnZRFFao6u9Bgfk'  # ضع هنا توكن البوت الخاص بك
+TOKEN = '7907373169:AAE-KqIlyhZLcXd2iWyEbBTiHCDGElM6J_s'  # ضع هنا توكن البوت الخاص بك
 ADMIN_ID = 7072622935  # ضع هنا معرف الأدمن الخاص بك
 CHANNEL = '@Viptofey'  # ضع هنا معرف القناة الخاصة بك
 
