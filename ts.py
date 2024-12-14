@@ -1,180 +1,127 @@
-import telebot
-import subprocess
-import os
-import zipfile
-import tempfile
-import shutil
 import requests
-import re
-import logging
+import json
+import telebot
+import random
 from telebot import types
+import threading
 import time
-import psycopg2
 
-TOKEN = '7907373169:AAE-KqIlyhZLcXd2iWyEbBTiHCDGElM6J_s'  # ضع هنا توكن البوت الخاص بك
-ADMIN_ID = 7072622935  # ضع هنا معرف الأدمن الخاص بك
-CHANNEL = '@Viptofey'  # ضع هنا معرف القناة الخاصة بك
+# قائمة التوكنات
+API_TOKENS = [
+'7550173501:AAGfQw5UOY4jNg7QfG9xhLQDgNVQp-W8c4o',
+    
+    '7924484400:AAFy7EXN-bBbzyElloNL7Y3uGU_E1rnuttM',
+    '7882960229:AAEFemjcoX_lTBzdDMvIhMnpRCFuskVw9f4',
+    '7743708826:AAFbkXBGovOa53wOt9uZZ1XNvR_RIGqL6pU',
+    
+    '7877154661:AAGunB3GlkfMznl8CHFq9v9325kbw3vBUC8',
+   '6837495236:AAGprk4Kgt7kkz1MQ_H6OJ27Zr3gbpOx3K8',
+        '6457264680:AAEJqTHvsUPE5Ztb4iwlxdyxZ2U0nz1bFZk',
+    
+    '7063542202:AAE-eyLE2EQHo8gIrPXXCvMCGKAUWI6p0Yc',
+    
+    
+    '7107601491:AAE5A2rJbbsSIF8p-Vc4x3DVaECp5n8d0nY',
+    '7161916020:AAHUDwiCFFx_nigu1R8zkThJMjP8VK3oTUw',
+    
+    '6998683016:AAE7xhxwYhvdOB-sueWRZwLudsUntzJki14',
+   
+    '8008365515:AAHUg86iM3A9h3YUOn-nEIh9niPAVhE3HOk',
+    '7739630113:AAHpMu_NRcCmLBcuMWdKZNPzXwdJW7u-mQo',
+    '7753663515:AAGqFplwOPzPuy2jbzjHIJ0hsfJ1EiUba0s',
+    '8065085015:AAGhjmj8DB4mtR02JCoAo9XcQxV916K7254',
+    '8138917881:AAFWE19NBNSyhtfE4joKcSKIgz72wTAM52M',
 
-bot = telebot.TeleBot(TOKEN)
-uploaded_files_dir = 'uploaded_bots'
-bot_scripts = {}
+        '7796183632:AAEEqqCrsnazT7msmy_BO-xABEpwUDpnTvo',
+    '7281428631:AAEFNczQspH6JFA5QwD7GJzt5FTZn1QGWq0',
 
-if not os.path.exists(uploaded_files_dir):
-    os.makedirs(uploaded_files_dir)
+        '7905581103:AAENJdpZgrWMMRV-VwXfD67m2KCeQ-q92rc',
 
-DATABASE_URL = "postgres://user:password@host:port/dbname"  # ضع هنا رابط قاعدة البيانات الخاص بك
-connection = psycopg2.connect(DATABASE_URL, sslmode='require')
-cursor = connection.cursor()
+        '7500604946:AAEiNPr5b-ANhfpVbjERDQnIQbd_PJWn-XQ',
+    '7998916732:AAG_qdAx2aT1avxWsCiWHIIuXLPRJmUHnYI',
+    
+'8010994721:AAG-Xn-3SXsg6FgsYgotEmze9Zx9ralz1YY',
 
-def initialize_database():
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id BIGINT PRIMARY KEY,
-            username TEXT,
-            is_subscribed BOOLEAN DEFAULT FALSE
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS files (
-            file_id SERIAL PRIMARY KEY,
-            user_id BIGINT,
-            file_name TEXT,
-            file_path TEXT,
-            is_running BOOLEAN DEFAULT FALSE,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-    """)
-    connection.commit()
+'7581614757:AAErIAqffKaPEqYv7n8IzblahAU9VDa7W_o',
 
-def check_subscription(user_id):
-    try:
-        member_status = bot.get_chat_member(CHANNEL, user_id).status
-        is_subscribed = member_status in ['member', 'administrator', 'creator']
-        cursor.execute("INSERT INTO users (user_id, username, is_subscribed) VALUES (%s, %s, %s) ON CONFLICT (user_id) DO UPDATE SET is_subscribed = EXCLUDED.is_subscribed", (user_id, bot.get_chat(user_id).username, is_subscribed))
-        connection.commit()
-        return is_subscribed
-    except telebot.apihelper.ApiException as e:
-        if "Bad Request: member list is inaccessible" in str(e):
-            bot.send_message(ADMIN_ID, "⚠️ لا يمكن الوصول إلى قائمة الأعضاء في القناة. يرجى التأكد من أن البوت مشرف (Admin) في القناة.")
-        logging.error(f"Error checking subscription: {e}")
-        return False
+'7488842737:AAHiqae7SGVjCk6Zz1G25Haq6NG0Mq-wDf0',
 
-def ask_for_subscription(chat_id):
-    markup = types.InlineKeyboardMarkup()
-    join_button = types.InlineKeyboardButton('اشترك في القناة', url=f'https://t.me/{CHANNEL}')
-    markup.add(join_button)
-    bot.send_message(chat_id, f"عزيزي المستخدم، عليك الاشتراك في القناة {CHANNEL} لتتمكن من استخدام البوت.", reply_markup=markup)
+'8006539961:AAGxOY4X8J-OqqcULQ893ZCvcZiZqLaMiGw',
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    user_id = message.from_user.id
+'8146796897:AAF3Y_h1tu74-4d7wuOchQg3RRZ298NSeqs',
 
-    if not check_subscription(user_id):
-        ask_for_subscription(message.chat.id)
-        return
+'7051701839:AAH2QSw3tJrQnyXKG0_Xoq9UsT2A45dn9Sw',
 
-    markup = types.InlineKeyboardMarkup()
-    upload_button = types.InlineKeyboardButton('رفع ملف بوت', callback_data='upload')
-    running_files_button = types.InlineKeyboardButton('عرض الملفات قيد التشغيل', callback_data='running_files')
-    dev_channel_button = types.InlineKeyboardButton('قناة المطور', url='https://t.me/M1telegramM1')
-    markup.add(upload_button, running_files_button)
-    markup.add(dev_channel_button)
-    bot.send_message(message.chat.id, f"مرحباً، {message.from_user.first_name}! يمكنك استخدام الأزرار أدناه للتحكم في الملفات التي قمت برفعها:", reply_markup=markup)
+'7955497223:AAFwFm8106CXHOCOapBfgrZRA395L-eKYiI',
 
-@bot.callback_query_handler(func=lambda call: call.data == 'upload')
-def ask_to_upload_file(call):
-    bot.send_message(call.message.chat.id, "من فضلك، أرسل الملف الذي تريد رفعه. يمكنك تشغيل حتى 5 ملفات.")
+'8110975976:AAHmNr-IbYYhQ7YXVWs5k7lCD0DdfCrp8Q0',
+'8111288499:AAG0YXaJRaoSQu2PkidSnbIy6tTxhRs6Z3E',
+'8077210784:AAEUqPNgjlneS_u3fQRCPYrtGeWMNx5f_qc',
+'7445612090:AAFt2V5x0z92rWTLAGaxfnPL2FrkW9JiRMM',
+'7851347903:AAF0SG7EtbRnokU70GFCFSpG5_v2jUymgeQ',
+'7694758471:AAFPSHfrc_COOZ8WrxNDkaYVnEHbhwil-q0',
+'7252326034:AAEXqKDcKHrAqPwILwCrE_lUriZElUeEVG0',
+'7588578415:AAG-aNMEfWExP59IlvyjRdoaGOGpyTkJBrs',
+'8042774423:AAEv2IZIJAg50LMAQ4y2l12TmFo88ndOO_0',
+'7558794347:AAESW45SP3CTJ_TthfTP-tNoqYCPf3Dg7FI',
+'7655594065:AAGUQW8rXbLmBeDQcDpqNbjORYzsuMe2AyA',
+'7646829730:AAFv9-XQ2gjtELHZ1k4gjrl6_gJUUFE7-dA',
+'7601318283:AAFi0YGhQUkQQvtlXoAjro3cDAnCPbVdjdI',
+'7777086260:AAEL1ihCafu1bY0uchdSxQKfylbXi45UN80',
+'8196639259:AAGPW9chw9spYNAVAYlrvLHzdgRmxX5tIZk',
+'7920339981:AAFMwyloHRSV3P0YNT8UFnYBH-edWWwhivk',
+'7881765133:AAFOyjZvcubBbSGuAiiDIFxYkRxWGxL4uJA',
+'6387239251:AAEjsjok-GJxl-9mbfBCtG2rMVbt4P5qgkk',
+'7689431345:AAFKJ6DibOt2miGb2H3kTyIv8qLUwFkyUTw',
+'7686574892:AAHBoiEI-R_IeUWK2kitFTx1LMAuMwMLdUo'
+]
 
-@bot.message_handler(content_types=['document'])
-def handle_file(message):
-    user_id = message.from_user.id
+# قائمة ردود الفعل
+reactions = ["👍", "🌚", "😍", "🔥", "😘", "❤️‍🔥", "💋", "🙈", "❤", "❤️‍🔥", "💯"]
 
-    if not check_subscription(user_id):
-        ask_for_subscription(message.chat.id)
-        return
+# دالة تفاعل البوت
+def create_bot(api_token):
+    bot = telebot.TeleBot(api_token)
 
-    cursor.execute("SELECT COUNT(*) FROM files WHERE user_id = %s", (user_id,))
-    file_count = cursor.fetchone()[0]
+    @bot.message_handler(commands=['start'])
+    def start(message):
+        name_of_C4 = f"{message.from_user.first_name}"
+        text = f'''* مرحبا عزيزي * {name_of_C4} * انا بوت تفاعل برموز تعبيرية يمكنك إضافتي إلى كروب أو قناة للتفاعل*'''
+        bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-    if file_count >= 5:
-        bot.send_message(message.chat.id, "لقد وصلت إلى الحد الأقصى لعدد الملفات التي يمكنك تشغيلها (5 ملفات).")
-        return
+    @bot.message_handler(func=lambda message: True)
+    def react_to_message(message):
+        emoji = random.choice(reactions)
+        attempt_react(api_token, message.chat.id, message.message_id, emoji)
 
-    try:
-        file_id = message.document.file_id
-        file_info = bot.get_file(file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        file_name = message.document.file_name
+    @bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document'])
+    def react_to_channel_post(post):
+        emoji = random.choice(reactions)
+        attempt_react(api_token, post.chat.id, post.message_id, emoji)
 
-        if not file_name.endswith('.py'):
-            bot.reply_to(message, "يرجى إرسال ملفات بايثون فقط.")
-            return
+    bot.infinity_polling()
 
-        script_path = os.path.join(uploaded_files_dir, f"{user_id}_{file_name}")
-        with open(script_path, 'wb') as new_file:
-            new_file.write(downloaded_file)
+# دالة لإرسال رد الفعل مع إعادة المحاولة في حال الفشل
+def attempt_react(api_token, chat_id, message_id, emoji, retries=3):
+    url = f"https://api.telegram.org/bot{api_token}/setmessagereaction"
+    data = {
+        'chat_id': chat_id,
+        'message_id': message_id,
+        'reaction': json.dumps([{'type': "emoji", "emoji": emoji}])
+    }
+    
+    for attempt in range(retries):
+        response = requests.post(url, data=data)
+        if response.status_code == 200:
+            print(f"Reaction sent successfully with token {api_token}")
+            return response.json()
+        else:
+            print(f"Failed attempt {attempt + 1} for token {api_token}: {response.text}")
+            time.sleep(1)  # تأخير بين المحاولات
 
-        run_script(script_path, message.chat.id, file_name, message)
+    print(f"All attempts failed for token {api_token}")
+    return None
 
-    except Exception as e:
-        bot.reply_to(message, f"حدث خطأ: {e}")
-
-def run_script(script_path, chat_id, file_name, original_message):
-    try:
-        requirements_path = os.path.join(os.path.dirname(script_path), 'requirements.txt')
-        if os.path.exists(requirements_path):
-            bot.send_message(chat_id, "جارٍ تثبيت المتطلبات...")
-            subprocess.check_call(['pip', 'install', '-r', requirements_path])
-
-        bot.send_message(chat_id, f"جارٍ تشغيل البوت {file_name}...")
-        process = subprocess.Popen(['python3', script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        bot_scripts[chat_id] = {'process': process}
-
-        cursor.execute("INSERT INTO files (user_id, file_name, file_path, is_running) VALUES (%s, %s, %s, %s)", (original_message.from_user.id, file_name, script_path, True))
-        connection.commit()
-
-        bot.send_message(chat_id, f"تم تشغيل البوت {file_name} بنجاح!")
-
-    except Exception as e:
-        bot.send_message(chat_id, f"حدث خطأ أثناء تشغيل البوت: {e}")
-
-@bot.callback_query_handler(func=lambda call: call.data == 'running_files')
-def show_running_files(call):
-    user_id = call.from_user.id
-    cursor.execute("SELECT file_name FROM files WHERE user_id = %s AND is_running = TRUE", (user_id,))
-    files = cursor.fetchall()
-
-    if not files:
-        bot.send_message(call.message.chat.id, "لا توجد ملفات قيد التشغيل حالياً.")
-        return
-
-    markup = types.InlineKeyboardMarkup()
-    for file in files:
-        file_name = file[0]
-        markup.add(types.InlineKeyboardButton(file_name, callback_data=f'stop_{file_name}'))
-
-    bot.send_message(call.message.chat.id, "الملفات قيد التشغيل:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('stop_'))
-def stop_and_delete_file(call):
-    user_id = call.from_user.id
-    file_name = call.data.split('_', 1)[1]
-
-    cursor.execute("SELECT file_path FROM files WHERE user_id = %s AND file_name = %s", (user_id, file_name))
-    file_path = cursor.fetchone()
-
-    if file_path and os.path.exists(file_path[0]):
-        # إيقاف العملية إذا كانت قيد التشغيل
-        if user_id in bot_scripts and bot_scripts[user_id]['process']:
-            bot_scripts[user_id]['process'].terminate()
-            del bot_scripts[user_id]
-
-        os.remove(file_path[0])
-        cursor.execute("DELETE FROM files WHERE user_id = %s AND file_name = %s", (user_id, file_name))
-        connection.commit()
-        bot.send_message(call.message.chat.id, f"تم إيقاف وحذف الملف {file_name}.")
-    else:
-        bot.send_message(call.message.chat.id, "لم يتم العثور على الملف.")
-
-initialize_database()
-bot.infinity_polling()
+# تشغيل جميع البوتات في وقت واحد
+for token in API_TOKENS:
+    threading.Thread(target=create_bot, args=(token,)).start()
